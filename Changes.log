@@ -21,11 +21,11 @@ V0.2
 cool stuff:
 - added changelog system :D
 - & also did it up with the repo so it can auto update
+- fling kinda goes where the player will be
 
 little things:
-- made entity highlights better
-- fling kinda goes where the player will be
 - made the player autofill nicer
+- names when wallhecked resize based on distance
 
 oh yeah, i also made it so that the ui is always on top
 bc eggsploits def def bezt script ever, right?

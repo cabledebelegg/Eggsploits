@@ -1031,7 +1031,7 @@ function h:addHighlight(model: Model, data: highlightData)
     local part = o.part(workspace, nil, nil, true)
     local nameTag = g.addToDestroy(o.make("BillboardGui", {
         AlwaysOnTop = true,
-        Size = u.pos(10, 2.5),
+        Size = u.posWithOffset(5, 100, 1.25, 25),
         Adornee = part,
         Parent = workspace,
         ExtentsOffsetWorldSpace = Vector3.yAxis,

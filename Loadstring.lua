@@ -1,0 +1,2 @@
+--!nocheck
+loadstring(game:HttpGet(""))()

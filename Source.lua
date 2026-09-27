@@ -91,15 +91,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 if Config.General.InitTable[Config.General.InitKey] then
-    if not Config.General.InitTable[Config.General.InitKey](
-        "Already initialised silly!",
-        {"Ok"},
-        function()
-            script:Destroy()
-        end)
-    then
-        script:Destroy()
-    end
+    Config.General.InitTable[Config.General.InitKey]("Already initialised silly!", {"Ok"})
     return
 end
 
@@ -2105,7 +2097,9 @@ do
                 o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
                 local things = {}
                 for _, line in txt:split("\n") do
-                    u.insert(things, o.txt(scroll, nil, u.pos(1), line))
+                    local fdsf = o.txt(scroll, nil, u.pos(1), line)
+                    fdsf.TextXAlignment = Enum.TextXAlignment.Left
+                    u.insert(things, fdsf)
                 end
                 g.camUpd(Config.Sizing.ChangeLogLine, function(num)
                     for _, thin in things do
@@ -2149,7 +2143,6 @@ do
                 for _, inst in g.toDestroy do
                     inst:Destroy()
                 end
-                script:Destroy()
                 Config.General.InitTable[Config.General.InitKey] = nil
             end
         end)

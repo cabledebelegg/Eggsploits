@@ -1,29 +1,43 @@
 local Config = {
-    Open = Enum.KeyCode.Minus,
-    PingUpdateTime = 3,
-    HighlightTransparency = 1/4,
-    MaxHighlights = 100,
-    NotificationTime = 7.5,
-    NotificationAnimation = TweenInfo.new(
-        0.25,
-        Enum.EasingStyle.Quad,
-        Enum.EasingDirection.Out
-    ),
-    SectionSwitchAnimation = TweenInfo.new(
-        0.5,
-        Enum.EasingStyle.Circular,
-        Enum.EasingDirection.Out
-    ),
-    SectionButtonInactiveColor = Color3.fromRGB(155, 155, 155),
-    SectionButtonActiveColor = Color3.fromRGB(255, 255, 255),
-    StrokeThicknessRatio = 3/650,
-    CornerRadiusRatio = 1/100,
-    TopbarSizeRatio = 4/60,
-    FrameSizeRatio = 1/10,
-    ListPaddingRatio = 1/30,
-    SuggestionButtonSizeRatio = 1/20,
-    SuggestionListPaddingRatio = 1/60,
-    ResizeBarSize = 5,
+    General = {
+        Open = Enum.KeyCode.Minus,
+        PingUpdateTime = 3,
+        InitTable = shared,
+        InitKey = "EggsploitsInitialised i swear if this key is already part of init table im done XD",
+        ChangeLogsFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Changes.log"
+    },
+    Highlight = {
+        Transparency = 1/4,
+        MaxAmount = 100,
+    },
+    Notification = {
+        Time = 7.5,
+        Animation = TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        ),
+    },
+    Section = {
+        SwitchAnimation = TweenInfo.new(
+            0.5,
+            Enum.EasingStyle.Circular,
+            Enum.EasingDirection.Out
+        ),
+        ButtonInactiveColor = Color3.fromRGB(155, 155, 155),
+        ButtonActiveColor = Color3.fromRGB(255, 255, 255),
+    },
+    Sizing = {
+        StrokeThickness = 3/650,
+        CornerRadius = 1/100,
+        Topbar = 4/60,
+        Frame = 1/10,
+        ListPadding = 1/30,
+        SuggestionButton = 1/20,
+        SuggestionListPadding = 1/60,
+        WindowResizeThickness = 5,
+        ChangeLogLine = 1/20,
+    },
     Style = {
         Text = {
             TextScaled = true,
@@ -70,16 +84,14 @@ local Config = {
         Objects = 12988752403,
         Lighting = 74888619733969,
         Misc = 9405921255,
-    },
-    InitTable = shared,
-    InitKey = "EggsploitsInitialised :: i swear if this key is already part of init table im done XD that would be sosososososos unlucky but ykw its a slight possiblity so thats why im typing this stupid long string, tbh im wasting my time but i felt like it so there goes _ __ g-fg dfhgisdhjfgi ugoifigu hfuighf uigshd  dhdif hsdofhjsdjoisdoif id fSOD JOJOPSJOPFGJSOPJFOSEJFOSJGIOHGUIHGUISHUIFHUS"
+    }
 }
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
-if Config.InitTable[Config.InitKey] then
-    if not Config.InitTable[Config.InitKey](
+if Config.General.InitTable[Config.General.InitKey] then
+    if not Config.General.InitTable[Config.General.InitKey](
         "Already initialised silly!",
         {"Ok"},
         function()
@@ -487,12 +499,12 @@ g.rng = Random.new()
 
 g.ping = 0
 task.spawn(function()
-    while task.wait(Config.PingUpdateTime) do
+    while task.wait(Config.General.PingUpdateTime) do
         g.ping = g.plr:GetNetworkPing()
     end
 end)
 
-g.camUpd(Config.CornerRadiusRatio, function(num)
+g.camUpd(Config.Sizing.CornerRadius, function(num)
     local rad = UDim.new(0, num)
     o.cornRadius = rad
     for _, corn in o.corns do
@@ -512,7 +524,7 @@ n.frame = o.make("Frame", {
 n.padding = 1.5
 n.notifs = {}
 n.normInfo = TweenInfo.new(
-    Config.NotificationTime,
+    Config.Notification.Time,
     Enum.EasingStyle.Linear
 )
 
@@ -536,7 +548,7 @@ function n.upd()
         end
         g.twen:Create(
             ui,
-            Config.NotificationAnimation,
+            Config.Notification.Animation,
             {Position = pos}
         ):Play()
     end
@@ -779,9 +791,9 @@ function w:makeBar(x: number, y: number): UIDragDetector
         ),
         Size = u.posWithOffset(
             u.boolToBit(x == 0),
-            u.unaryWithBool(Config.ResizeBarSize, x ~= -1),
+            u.unaryWithBool(Config.Sizing.WindowResizeThickness, x ~= -1),
             u.boolToBit(y == 0),
-            u.unaryWithBool(Config.ResizeBarSize, y ~= -1)
+            u.unaryWithBool(Config.Sizing.WindowResizeThickness, y ~= -1)
         ),
         BackgroundTransparency = 1
     }))
@@ -891,7 +903,7 @@ function w:destroy()
     u.remove(w.windows, self)
 end
 
-g.camUpd(Config.TopbarSizeRatio, function(num)
+g.camUpd(Config.Sizing.Topbar, function(num)
     w.topbarSize = num
     for _, win in w.windows do
         win:updTopbarSize(num)
@@ -971,7 +983,7 @@ function s.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
     end)
 end
 
-g.camUpd(Config.SuggestionButtonSizeRatio, function(num)
+g.camUpd(Config.Sizing.SuggestionButton, function(num)
     s.btnSize = num
 end)
 
@@ -1018,7 +1030,7 @@ function h:updCn()
 end
 
 function h:addHighlight(model: Model, data: highlightData)
-    if h.highlightAmount == Config.MaxHighlights then
+    if h.highlightAmount == Config.Highlight.MaxAmount then
         h.err("Max highlights reached", {"Ok"})
         return
     end
@@ -1049,7 +1061,7 @@ function h:addHighlight(model: Model, data: highlightData)
             Adornee = part,
             Parent = workspace,
             Color3 = col,
-            Transparency = Config.HighlightTransparency,
+            Transparency = Config.Highlight.Transparency,
             Shading = Enum.AdornShading.XRay
         })),
         off = data.off
@@ -1121,19 +1133,19 @@ function m.goToSection(idx: number)
         return
     end
     for i, section in m.sections do
-        local color = i == idx and Config.SectionButtonActiveColor or Config.SectionButtonInactiveColor
+        local color = i == idx and Config.Section.ButtonActiveColor or Config.Section.ButtonInactiveColor
         local pos = u.pos((i - idx) * m.padding)
         if section[1].ImageColor3 ~= color then
             g.twen:Create(
                 section[1],
-                Config.SectionSwitchAnimation,
+                Config.Section.SwitchAnimation,
                 {ImageColor3 = color}
             ):Play()
         end
         if section[2].Position ~= pos then
             g.twen:Create(
                 section[2],
-                Config.SectionSwitchAnimation,
+                Config.Section.SwitchAnimation,
                 {Position = pos}
             ):Play()
         end
@@ -1143,7 +1155,7 @@ end
 function m.addSection(img: number, stuff: {{GuiObject}})
     local sectionAmount = #m.sections
     local btn:ImageButton = o.img(m.nav, nil, u.pos1, img, 1, true)
-    btn.ImageColor3 = Config.SectionButtonInactiveColor
+    btn.ImageColor3 = Config.Section.ButtonInactiveColor
     btn.SizeConstraint = Enum.SizeConstraint.RelativeXX
     o.flex(btn)
     btn.Activated:Connect(function()
@@ -1206,14 +1218,14 @@ do
     end
 end
 
-g.camUpd(Config.FrameSizeRatio, function(num)
+g.camUpd(Config.Sizing.Frame, function(num)
     m.frameSize = num
     for _, frm in m.frames do
         frm.Size = u.posWithOffset(1, 0, 0, num)
     end
 end)
 
-g.camUpd(Config.StrokeThicknessRatio, function(num)
+g.camUpd(Config.Sizing.StrokeThickness, function(num)
     o.stroThickness = num
     for _, stro in o.stros do
         stro.Thickness = num
@@ -1225,7 +1237,7 @@ g.camUpd(Config.StrokeThicknessRatio, function(num)
     end
 end)
 
-g.camUpd(Config.ListPaddingRatio, function(num)
+g.camUpd(Config.Sizing.ListPadding, function(num)
     m.listPadding = num
     local udim = UDim.new(0, num)
     for _, list in m.lists do
@@ -2081,6 +2093,36 @@ do
         u.insert(stuff, {m.btn("Sticky note", function()
             m.stickyNote()
         end)})
+
+        do -- changelogs
+            local success, txt = pcall(function()
+                return game:HttpGet(Config.General.ChangeLogsFile)
+            end)
+            local fn
+            if success then
+                local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")
+                local scroll = o.scroll(win.content, nil, u.pos1)
+                o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
+                local things = {}
+                for _, line in txt:split("\n") do
+                    u.insert(things, o.txt(scroll, nil, u.pos(1), line))
+                end
+                g.camUpd(Config.Sizing.ChangeLogLine, function(num)
+                    for _, thin in things do
+                        thin.Size = u.posWithOffset(1, 0, 0, num)
+                    end
+                end)
+                fn = function()
+                    win:toggle()
+                end
+            else
+                fn = function()
+                    errSend(`Could not open changelogs: {txt}`)
+                end
+            end
+            u.insert(stuff, {m.btn("Changelogs", fn)})
+        end
+
         m.addSection(Config.SectionImages.Misc, stuff)
     end
 end
@@ -2108,7 +2150,7 @@ do
                     inst:Destroy()
                 end
                 script:Destroy()
-                Config.InitTable[Config.InitKey] = nil
+                Config.General.InitTable[Config.General.InitKey] = nil
             end
         end)
     end)
@@ -2118,12 +2160,12 @@ b.w:addTxtBtn("?", function()
 end)
 b.btn = o.img(b.w.content, nil, u.pos1, Config.EggImages.Normal, 0, true, "Primary")
 o.corn(b.btn)
-o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.Open.Name}`)
+o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.General.Open.Name}`)
 b.btn.Activated:Connect(function()
     m.w:toggle()
 end)
 g.cn(g.uis.InputEnded:Connect(function(input, gameProcessedEvent)
-    if not gameProcessedEvent and input.KeyCode == Config.Open then
+    if not gameProcessedEvent and input.KeyCode == Config.General.Open then
         m.w:toggle()
     end
 end))
@@ -2131,4 +2173,4 @@ b.w:enable()
 
 n.send(Config.EggImages.Normal, "Eggsploits initialised", {"Ok"})
 
-Config.InitTable[Config.InitKey] = n.XD()
+Config.General.InitTable[Config.General.InitKey] = n.XD()

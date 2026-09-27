@@ -414,7 +414,6 @@ g.uis = game:GetService("UserInputService")
 g.light = game:GetService("Lighting")
 g.plrs = game:GetService("Players")
 g.plr = g.plrs.LocalPlayer
-g.plrGui = g.plr:WaitForChild("PlayerGui")
 g.mouse = g.plr:GetMouse()
 g.cns = {}
 g.toDestroy = {}
@@ -438,7 +437,7 @@ g.ui = g.addToDestroy(o.make("ScreenGui", {
     IgnoreGuiInset = true,
     DisplayOrder = math.huge,
     ResetOnSpawn = false,
-    Parent = g.plrGui,
+    Parent = game:GetService("CoreGui"),
 }))
 g.pad = o.padding(g.ui)
 
@@ -1258,7 +1257,7 @@ do
     end
     g.cn(g.plrs.PlayerAdded:Connect(plrAdded))
     g.cn(g.plrs.PlayerRemoving:Connect(function(plr)
-        u.remove(plrNames, plr)
+        u.remove(plrNames, plr.Name)
         plrNamesToPlr[plr.Name] = nil
     end))
     local function plrCheck(name: string)
@@ -1669,9 +1668,14 @@ do
                         return
                     end
                     local vec = g.rng:NextUnitVector() * speed
-                    g.char:PivotTo(char:GetPivot())
+                    local part = char.PrimaryPart or char:FindFirstChildWhichIsA("BasePart", true)
+                    local piv = char:GetPivot()
+                    if part then
+                        piv += part.AssemblyLinearVelocity * g.ping
+                    end
+                    g.char:PivotTo(piv)
                     root.AssemblyAngularVelocity = vec
-                    root.AssemblyAngularVelocity = vec
+                    root.AssemblyLinearVelocity = vec
                 end)
             end)
             local plrBox = m.box("Player", plrNames, function(name)
@@ -1778,7 +1782,7 @@ do
                 })
             end
             local function addHum(hum)
-                if not hum:IsA("Humanoid") then return end
+                if not hum:IsA("Humanoid") or not hum:IsA("AnimationController") then return end
                 local char = hum.Parent
                 if char == workspace or g.plrs:GetPlayerFromCharacter(char) then return end
                 chars[char] = true
@@ -2093,8 +2097,7 @@ do
             local fn
             if success then
                 local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")
-                local scroll = o.scroll(win.content, nil, u.pos1)
-                o.paddingEzy(scroll, 0.05, 0.05, 0.05, 0.05)
+                local scroll = o.scroll(win.content, u.pos(0.05, 0.05), u.pos(0.9, 0.9))
                 o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
                 local things = {}
                 for _, line in txt:split("\n") do

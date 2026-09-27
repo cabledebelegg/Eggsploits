@@ -2088,12 +2088,13 @@ do
 
         do -- changelogs
             local success, txt = pcall(function()
-                return game:HttpGet(Config.General.ChangeLogsFile)
+                return (game :: any):HttpGet(Config.General.ChangeLogsFile)
             end)
             local fn
             if success then
                 local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")
                 local scroll = o.scroll(win.content, nil, u.pos1)
+                o.paddingEzy(scroll, 0.05, 0.05, 0.05, 0.05)
                 o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
                 local things = {}
                 for _, line in txt:split("\n") do

@@ -4,7 +4,8 @@ local Config = {
         PingUpdateTime = 3,
         InitTable = shared,
         InitKey = "EggsploitsInitialised i swear if this key is already part of init table im done XD",
-        ChangeLogsFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Changes.log"
+        ChangeLogsFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Changes.log",
+        VersionFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Version.log"
     },
     Highlight = {
         Transparency = 1/4,
@@ -231,6 +232,15 @@ do
     end
 end
 
+do
+    local function unsafeGet(url: string): string
+        return (game :: any):HttpGet(url)
+    end
+    function u.httpGet(url: string): (boolean, string)
+        return pcall(unsafeGet, url)
+    end
+end
+
 ---- object ----
 
 function o.mould(inst: Instance, props: {[string]: any}?, ...: string)
@@ -437,7 +447,7 @@ g.ui = g.addToDestroy(o.make("ScreenGui", {
     IgnoreGuiInset = true,
     DisplayOrder = math.huge,
     ResetOnSpawn = false,
-    Parent = game:GetService("CoreGui"),
+    Parent = g.run:IsStudio() and g.plr:WaitForChild("PlayerGui") or game:GetService("CoreGui"),
 }))
 g.pad = o.padding(g.ui)
 
@@ -1091,7 +1101,11 @@ end
 
 ---- main window ----
 
-m.w = w.newEzier(0.5, 0.3, 0.7, "Eggsploits")
+do
+    local success, txt = u.httpGet(Config.General.VersionFile)
+    m.title = `Eggsploits {success and txt or "V?.?"}`
+end
+m.w = w.newEzier(0.5, 0.3, 0.7, m.title)
 
 o.paddingEzy(m.w.content, .05, .05, .1, .1)
 
@@ -1782,7 +1796,7 @@ do
                 })
             end
             local function addHum(hum)
-                if not hum:IsA("Humanoid") or not hum:IsA("AnimationController") then return end
+                if not hum:IsA("Humanoid") and not hum:IsA("AnimationController") then return end
                 local char = hum.Parent
                 if char == workspace or g.plrs:GetPlayerFromCharacter(char) then return end
                 chars[char] = true
@@ -2091,9 +2105,7 @@ do
         end)})
 
         do -- changelogs
-            local success, txt = pcall(function()
-                return (game :: any):HttpGet(Config.General.ChangeLogsFile)
-            end)
+            local success, txt = u.httpGet(Config.General.ChangeLogsFile)
             local fn
             if success then
                 local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")

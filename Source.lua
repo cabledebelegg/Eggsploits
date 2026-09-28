@@ -4,8 +4,7 @@ local Config = {
         PingUpdateTime = 3,
         InitTable = shared,
         InitKey = "EggsploitsInitialised i swear if this key is already part of init table im done XD",
-        ChangeLogsFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Changes.log",
-        VersionFile = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/Version.log"
+        VersionHistory = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/VersionHistory.log",
     },
     Highlight = {
         Transparency = 1/4,
@@ -1103,11 +1102,7 @@ end
 
 ---- main window ----
 
-do
-    local success, txt = u.httpGet(Config.General.VersionFile)
-    m.title = `Eggsploits {success and txt or "V?.?"}`
-end
-m.w = w.newEzier(0.5, 0.3, 0.7, m.title)
+m.w = w.newEzier(0.5, 0.3, 0.7, "Eggsploits")
 
 o.paddingEzy(m.w.content, .05, .05, .1, .1)
 
@@ -2106,15 +2101,24 @@ do
             m.stickyNote()
         end)})
 
-        do -- changelogs
-            local success, txt = u.httpGet(Config.General.ChangeLogsFile)
+        do
+            
+        end
+
+        do -- current version, changelogs
+            local success, txt = u.httpGet(Config.General.VersionHistory)
+            local msg
+            local img
             local fn
             if success then
                 local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")
                 local scroll = o.scroll(win.content, u.pos(0.05, 0.05), u.pos(0.9, 0.9))
                 o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
                 local things = {}
-                for _, line in txt:split("\n") do
+                local lines = txt:split("\n")
+                msg = lines[1]
+                img = Config.EggImages.Normal
+                for _, line in lines do
                     local fdsf = o.txt(scroll, nil, u.pos(1), line)
                     fdsf.TextXAlignment = Enum.TextXAlignment.Left
                     u.insert(things, fdsf)
@@ -2128,11 +2132,19 @@ do
                     win:toggle()
                 end
             else
+                msg = `Could not get version: {txt}`
+                img = Config.EggImages.HUH
                 fn = function()
                     errSend(`Could not open changelogs: {txt}`)
                 end
             end
-            u.insert(stuff, {m.btn("Changelogs", fn)})
+            local notif = n.capSend(1)
+            u.insert(stuff, {
+                m.btn("Version", function()
+                    notif(img, msg, {"Ok"})
+                end),
+                m.btn("Changelogs", fn)
+            })
         end
 
         m.addSection(Config.SectionImages.Misc, stuff)

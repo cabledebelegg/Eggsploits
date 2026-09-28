@@ -499,9 +499,11 @@ end
 g.rng = Random.new()
 
 g.ping = 0
+g.pingRound = 0
 task.spawn(function()
     while task.wait(Config.General.PingUpdateTime) do
-        g.ping = g.plr:GetNetworkPing()
+        g.pingRound = g.plr:GetNetworkPing()
+        g.ping = g.pingRound / 2
     end
 end)
 

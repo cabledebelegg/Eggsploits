@@ -2143,7 +2143,7 @@ m.goToSection(1)
 
 ---- button ----
 
-b.w = w.new(.15, .2, .1, .15, .2, .25, "Eggsploits", true, true)
+b.w = w.new(.15, .2, .1, .15, .2, .25, "Open", true, true)
 b.w.ui.Position = u.pos(.825, .05)
 
 b.cred = w.newEzier(.25, .2, .3, "Credits")

@@ -1,0 +1,37 @@
+V0.3 - 28/09/26
+some random fixes:
+- npc wallhecks actually work ok now
+- made ping related things better
+
+V0.2 - 27/09/26
+cool stuff:
+- added changelog system :D
+- & also did it up with the repo so it can auto update
+- fling kinda goes where the player will be
+
+little things:
+- made the player autofill nicer
+- names when wallhecked resize based on distance
+
+oh yeah, i also made it so that the ui is always on top
+bc eggsploits def def bezt script ever, right?
+yea no XD, anyway..
+
+V0.1 - 26/09/26
+minor bug fixes like:
+- fling going in front of players
+- I FORGOT THE OTHER ONE >:(
+- ima terrible changelogger XD
+
+V0.0 - 26/09/26 (first version!!)
+had systems such as:
+- windows
+- notifications
+- suggestions
+
+includes features such as:
+- fly, walk, jump, tp
+- wallhecks, fling
+- baseplate, grappler
+- lighting manipulation
+- sticky notes XD

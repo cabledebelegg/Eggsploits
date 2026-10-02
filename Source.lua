@@ -2,9 +2,12 @@ local Config = {
     General = {
         Open = Enum.KeyCode.Minus,
         PingUpdateTime = 3,
-        InitTable = shared,
-        InitKey = "EggsploitsInitialised i swear if this key is already part of init table im done XD",
-        VersionHistory = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/VersionHistory.log",
+        InitTable = getgenv and getgenv() or _G,
+        InitKey = "EggsploitsInitialised",
+        RestartWhenAlreadyInitialised = true,
+        CurrentVersionUrl = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/CurrentVersion.log",
+        VersionHistoryUrl = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/VersionHistory.log",
+        LastVersionPath = "LastEggsploitsVersion.log",
     },
     Highlight = {
         Transparency = 1/4,
@@ -17,6 +20,7 @@ local Config = {
             Enum.EasingStyle.Quad,
             Enum.EasingDirection.Out
         ),
+        BarColour = Color3.fromRGB(131, 107, 23)
     },
     Section = {
         SwitchAnimation = TweenInfo.new(
@@ -36,14 +40,15 @@ local Config = {
         SuggestionButton = 1/20,
         SuggestionListPadding = 1/60,
         WindowResizeThickness = 5,
-        ChangeLogLine = 1/20,
+        ChangelogText = 40/580
     },
-    Style = {
+    GenericProperties = {
         Text = {
             TextScaled = true,
             FontFace = Font.fromEnum(Enum.Font.FredokaOne),
             BackgroundTransparency = 1,
-            TextColor3 = Color3.fromRGB(0, 0, 0)
+            TextColor3 = Color3.fromRGB(0, 0, 0),
+            BorderSizePixel = 0,
         },
         TextBox = {
             TextScaled = true,
@@ -55,12 +60,11 @@ local Config = {
         },
         Primary = {
             BackgroundColor3 = Color3.fromRGB(255, 204, 19),
+            BorderSizePixel = 0,
         },
         Secondary = {
             BackgroundColor3 = Color3.fromRGB(232, 185, 17),
-        },
-        Tertiary = {
-            BackgroundColor3 = Color3.fromRGB(131, 107, 23)
+            BorderSizePixel = 0,
         },
         Stroke = {
             ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -72,33 +76,34 @@ local Config = {
             CanvasSize = UDim2.fromScale(0,0)
         }
     },
-    EggImages = {
-        Normal = 95063492825713,
-        HUH = 118621106143064,
-        Sad = 75952115388174,
-        XD = 126710606924682
-    },
-    SectionImages = {
-        You = 7992557358,
-        Players = 124929180840291,
-        Objects = 12988752403,
-        Lighting = 74888619733969,
-        Misc = 9405921255,
+    Images = {
+        ExpressionlessEgg = 95063492825713,
+        HUHEgg = 118621106143064,
+        SadEgg = 75952115388174,
+        XDEgg = 126710606924682,
+        YouIcon = 7992557358,
+        PlayersIcon = 124929180840291,
+        ObjectsIcon = 12988752403,
+        LightingIcon = 74888619733969,
+        MiscIcon = 9405921255,
     }
 }
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
+
 if Config.General.InitTable[Config.General.InitKey] then
-    Config.General.InitTable[Config.General.InitKey]("Already initialised silly!", {"Ok"})
+    Config.General.InitTable[Config.General.InitKey](Config.General.RestartWhenAlreadyInitialised)
     return
 end
 
----- utils, object, global, notification, window, suggestions, highlight, main, button ----
+---- utils, janitor, object, global, notification, window, version, suggestions, highlight, main, button ----
 local u = {}
+local j = {}
 local o = {}
 local g = {}
+local v = {}
 local n = {}
 local w = {}
 local s = {}
@@ -171,20 +176,6 @@ function u.remove<T>(tb: {T}, thingy: T)
     end
 end
 
-function u.dcn(tb: {RBXScriptConnection}, cn: RBXScriptConnection)
-    u.remove(tb, cn)
-    if cn.Connected then
-        cn:Disconnect()
-    end
-end
-
-function u.dcnAll(tb: {RBXScriptConnection})
-    for idx, cn in tb do
-        cn:Disconnect()
-        tb[idx] = nil
-    end
-end
-
 function u.filter(tb: {string}, str: string): {string}
     local out = {}
     for _, ostr in tb do
@@ -231,20 +222,86 @@ do
     end
 end
 
-do
-    local function unsafeGet(url: string): string
-        return (game :: any):HttpGet(url)
+function u.pcall(fn: (...any) -> (...any), ...: any): (boolean, ...any)
+    local tb = {pcall(fn, ...)}
+    if not tb[1] then
+        tb[2] = "Error"..tb[2]
     end
-    function u.httpGet(url: string): (boolean, string)
-        return pcall(unsafeGet, url)
+    return unpack(tb)
+end
+
+function u.httpGet(url: string): (boolean, string)
+    return u.pcall(function(urllll)
+        return game:HttpGet(urllll)
+    end, url)
+end
+
+function u.readFile(path: string): (boolean, string)
+    return u.pcall(readFile, path)
+end
+
+function u.writeFile(path: string, data: string): boolean
+    return u.pcall(writeFile, path, data)
+end
+
+---- janitor ----
+
+j.stuff = {}
+
+function j.add(item: any, method: any?)
+    u.insert(j.stuff, {
+        item = item,
+        method = method
+    })
+    return item
+end
+
+function j.remove(item: any)
+    for idx = #j.stuff, 1, -1 do
+        if j.stuff[idx].item ~= item then continue end
+        table.remove(j.stuff, idx)
+        return
     end
+end
+
+function j.cleanUpSingleRaw(idx: number, things: {item: any, method: any?})
+    local item = things.item
+    local typ = typeof(item)
+    if typ == "RBXScriptConnection" then
+        item:Disconnect()
+    elseif typ == "Instance" then
+        item:Destroy()
+    elseif typ == "thread" then
+        task.cancel(item)
+    elseif typ == "function" then
+        item()
+    elseif typ == "table" then
+        item[things.method](item)
+    end
+    table.remove(j.stuff, idx)
+end
+
+function j.cleanUpSingle(item: any)
+    for idx = #j.stuff, 1, -1 do
+        local things = j.stuff[idx]
+        if things.item ~= item then continue end
+        j.cleanUpSingleRaw(idx, things)
+        return
+    end
+end
+
+function j.cleanUp()
+    for idx = #j.stuff, 1, -1 do
+        j.cleanUpSingleRaw(idx, j.stuff[idx])
+    end
+    script:Destroy()
 end
 
 ---- object ----
 
 function o.mould(inst: Instance, props: {[string]: any}?, ...: string)
     for _, tag in {...} do
-        local tprops = Config.Style[tag]
+        local tprops = Config.GenericProperties[tag]
         if not tprops then
             continue
         end
@@ -417,37 +474,32 @@ end
 
 ---- global ----
 
-g.run = game:GetService("RunService")
-g.twen = game:GetService("TweenService")
-g.uis = game:GetService("UserInputService")
-g.light = game:GetService("Lighting")
-g.plrs = game:GetService("Players")
+g.services = setmetatable({}, {
+	__index = function(self, name)
+        local service = game:GetService(name)
+		local ref = cloneref and cloneref(service) or service
+        rawset(self, name, ref)
+		return ref
+	end
+})
+
+g.run = g.services.RunService :: RunService
+g.twen = g.services.TweenService :: TweenService
+g.uis = g.services.UserInputService :: UserInputService
+g.light = g.services.Lighting :: Lighting
+g.plrs = g.services.Players :: Players
 g.plr = g.plrs.LocalPlayer
+g.core = g.run:IsStudio() and g.services.CoreGui or g.plr:WaitForChild("PlayerGui")
 g.mouse = g.plr:GetMouse()
-g.cns = {}
-g.toDestroy = {}
 
-function g.addToDestroy<T>(inst: T): T
-    u.insert(g.toDestroy, inst)
-    return inst
-end
-
-function g.cn(cn: RBXScriptConnection): RBXScriptConnection
-    u.insert(g.cns, cn)
-    return cn
-end
-
-function g.dcn(cn: RBXScriptConnection)
-    u.dcn(g.cns, cn)
-end
-
-g.ui = g.addToDestroy(o.make("ScreenGui", {
+g.ui = j.add(o.make("ScreenGui", {
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
     DisplayOrder = math.huge,
     ResetOnSpawn = false,
-    Parent = g.run:IsStudio() and g.plr:WaitForChild("PlayerGui") or game:GetService("CoreGui"),
+    Parent = g.core,
 }))
+
 g.pad = o.padding(g.ui)
 
 do
@@ -475,19 +527,19 @@ do
         g.cam = newCam
         updStuff(newCam)
         if currentUpd then
-            g.dcn(currentUpd)
+            j.cleanUpSingle(currentUpd)
         end
         currentUpd = newCam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
             updStuff(newCam)
         end)
-        g.cn(currentUpd)
+        j.add(currentUpd)
     end
 
     onCharAdded(g.plr.Character or g.plr.CharacterAdded:Wait())
-    g.cn(g.plr.CharacterAdded:Connect(onCharAdded))
+    j.add(g.plr.CharacterAdded:Connect(onCharAdded))
 
     onCamAdded(workspace.CurrentCamera)
-    g.cn(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(onCamAdded))
+    j.add(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(onCamAdded))
 
     function g.camUpd(ratio: number, fn: (number) -> ())
         u.insert(upds, {ratio, fn})
@@ -513,6 +565,11 @@ g.camUpd(Config.Sizing.CornerRadius, function(num)
         corn.CornerRadius = rad
     end
 end)
+
+function g.remove()
+    j.cleanUp()
+    Config.General.InitTable[Config.General.InitKey] = nil
+end
 
 ---- notification ----
 
@@ -620,7 +677,8 @@ function n.send(img: number?, txt: string?, options: {string}?, callback: notifC
             Position = u.pos(0, .93),
             Size = u.pos(1, 0.07),
             BorderSizePixel = 0,
-        }, "Tertiary"),
+            BackgroundColor3 = Config.Notification.BarColour
+        }),
         n.normInfo,
         {Size = u.pos(0, .07)}
     )
@@ -640,19 +698,30 @@ function n.capSendImgStuffToo(img: number?, max: number?)
 end
 
 function n.normal(max: number?)
-    return n.capSendImgStuffToo(Config.EggImages.Normal, max)
+    return n.capSendImgStuffToo(Config.Images.ExpressionlessEgg, max)
 end
 
 function n.HUH(max: number?)
-    return n.capSendImgStuffToo(Config.EggImages.HUH, max)
+    return n.capSendImgStuffToo(Config.Images.HUHEgg, max)
 end
 
 function n.sad(max: number?)
-    return n.capSendImgStuffToo(Config.EggImages.Sad, max)
+    return n.capSendImgStuffToo(Config.Images.SadEgg, max)
 end
 
 function n.XD(max: number?)
-    return n.capSendImgStuffToo(Config.EggImages.XD, max)
+    return n.capSendImgStuffToo(Config.Images.XDEgg, max)
+end
+
+do
+    local XD = n.XD(3)
+    Config.General.InitTable[Config.General.InitKey] = function(remove: boolean)
+        if remove then
+            g.remove()
+        else
+            XD("Already initialised, silly!", {"Ok"})
+        end
+    end
 end
 
 ---- window ----
@@ -683,7 +752,6 @@ function w.new(
     self.maxSizeX = maxSizeX
     self.maxSizeY = maxSizeY
     self.enabled = false
-
     self.ui = o.make("Frame", {
         Parent = g.ui,
         Position = u.centre(.5,.5,size),
@@ -712,7 +780,27 @@ function w.new(
             if x == 0 and y == 0 then
                 continue
             end
-            self.bars[x][y] = self:makeBar(x, y)
+            local drag = self:makeBar(x, y)
+            local dragging = false
+            drag.DragStart:Connect(function()
+                local oX = self.ui.Position.X.Scale
+                local oY = self.ui.Position.Y.Scale
+                local oSX = self.ui.Size.X.Scale
+                local oSY = self.ui.Size.Y.Scale
+                dragging = true
+                while dragging and self.enabled and g.run.RenderStepped:Wait() do
+                    local du = drag.DragUDim2
+                    local posX, sizeX = w.resizeAmount(x, oX, oSX, du.X.Offset / g.cam.ViewportSize.X, self.minSizeX, self.maxSizeX)
+                    local posY, sizeY = w.resizeAmount(y, oY, oSY, du.Y.Offset / g.cam.ViewportSize.Y, self.minSizeY, self.maxSizeY)
+                    self.ui.Position = u.pos(posX, posY)
+                    self.ui.Size = u.pos(sizeX, sizeY)
+                end
+                dragging = false
+            end)
+            drag.DragEnd:Connect(function()
+                dragging = false
+            end)
+            self.bars[x][y] = drag
         end
     end
     if not noCloseButton then
@@ -724,6 +812,26 @@ function w.new(
         self.modaler = o.txt(self.ui, nil, nil, nil, 1, true)
     end
     u.insert(w.windows, self)
+    local dragging = false
+    self.drag.DragStart:Connect(function()
+        self:sendToLayer()
+        dragging = true
+        local x = self.ui.Position.X.Scale
+        local y = self.ui.Position.Y.Scale
+        local sx = 1 - self.ui.Size.X.Scale
+        local sy = 1 - self.ui.Size.Y.Scale
+        while dragging and self.enabled and g.run.RenderStepped:Wait() do
+            local du = self.drag.DragUDim2
+            self.ui.Position = u.pos(
+                math.clamp(x + du.X.Offset / g.cam.ViewportSize.X, 0, sx),
+                math.clamp(y + du.Y.Offset / g.cam.ViewportSize.Y, 0, sy)
+            )
+        end
+        dragging = false
+    end)
+    self.drag.DragEnd:Connect(function()
+        dragging = false
+    end)
     return self
 end
 
@@ -738,20 +846,6 @@ function w.newEzier(
     return w.new(size, size, minSize, minSize, maxSize, maxSize, title, noCloseButton, nonModal)
 end
 
-function w.dragggggg(ui: GuiObject, drag: UIDragDetector): RBXScriptConnection
-    local x = ui.Position.X.Scale
-    local y = ui.Position.Y.Scale
-    local sx = 1 - ui.Size.X.Scale
-    local sy = 1 - ui.Size.Y.Scale
-    return g.run.RenderStepped:Connect(function()
-        local du = drag.DragUDim2
-        ui.Position = u.pos(
-            math.clamp(x + du.X.Offset / g.cam.ViewportSize.X, 0, sx),
-            math.clamp(y + du.Y.Offset / g.cam.ViewportSize.Y, 0, sy)
-        )
-    end)
-end
-
 function w:addBtn(btn: GuiButton, callback: btnCallback)
     self.buttonAmount += 1
     btn.Parent = self.topbar
@@ -759,9 +853,7 @@ function w:addBtn(btn: GuiButton, callback: btnCallback)
     btn.SizeConstraint = Enum.SizeConstraint.RelativeYY
     btn.LayoutOrder = -self.buttonAmount
     self.topButtons[btn] = callback
-    if self.enabled then
-        self:cn(btn.Activated:Connect(callback))
-    end
+    btn.Activated:Connect(callback)
 end
 
 function w:addTxtBtn(txt: string, callback: btnCallback)
@@ -815,14 +907,6 @@ function w.resizeAmount(
         size
 end
 
-function w:dcn(cn: RBXScriptConnection)
-    u.dcn(self.cns, cn)
-end
-
-function w:cn(cn: RBXScriptConnection)
-    u.insert(self.cns, cn)
-end
-
 function w:sendToLayer(layer: number?)
     local amount = #self.windows
     layer = layer or amount
@@ -846,48 +930,7 @@ function w:enable(enabled: boolean?)
     self.enabled = e
     ui.Visible = e
     if e then
-        self:updTopbarSize(w.topbarSize)
         self:sendToLayer()
-        do
-            local dragging
-            local drag = self.drag
-            self:cn(drag.DragStart:Connect(function()
-                self:sendToLayer()
-                dragging = w.dragggggg(ui, drag)
-                self:cn(dragging)
-            end))
-            self:cn(self.drag.DragEnd:Connect(function()
-                dragging:Disconnect()
-            end))
-        end
-        for x, ys in self.bars do
-            for y, drag in ys do
-                local dragging
-                self:cn(drag.DragStart:Connect(function()
-                    local oX = ui.Position.X.Scale
-                    local oY = ui.Position.Y.Scale
-                    local oSX = ui.Size.X.Scale
-                    local oSY = ui.Size.Y.Scale
-                    dragging = g.run.RenderStepped:Connect(function()
-                        local du = drag.DragUDim2
-                        local posX, sizeX = w.resizeAmount(x, oX, oSX, du.X.Offset / g.cam.ViewportSize.X, self.minSizeX, self.maxSizeX)
-                        local posY, sizeY = w.resizeAmount(y, oY, oSY, du.Y.Offset / g.cam.ViewportSize.Y, self.minSizeY, self.maxSizeY)
-                        ui.Position = u.pos(posX, posY)
-                        ui.Size = u.pos(sizeX, sizeY)
-                    end)
-                    self:cn(dragging)
-                end))
-
-                self:cn(drag.DragEnd:Connect(function()
-                    self:dcn(dragging)
-                end))
-            end
-        end
-        for btn, callback in self.topButtons do
-            self:cn(btn.Activated:Connect(callback))
-        end
-    else
-        u.dcnAll(self.cns)
     end
 end
 
@@ -911,6 +954,49 @@ g.camUpd(Config.Sizing.Topbar, function(num)
         win:updTopbarSize(num)
     end
 end)
+
+---- version ----
+
+v.currentVersionReadSuccess, v.currentVersion = u.httpGet(Config.General.CurrentVersionUrl)
+v.versionHistoryReadSuccess, v.versionHistory = u.httpGet(Config.General.VersionHistoryUrl)
+v.lastVersionReadSuccess, v.lastVersion = u.readFile(Config.General.LastVersionPath)
+v.lastVersionWriteSuccess = false
+if v.currentVersionReadSuccess then
+   v.lastVersionWriteSuccess = u.writeFile(Config.General.LastVersionPath, v.currentVersion)
+end
+
+do
+    local send = n.capSend()
+    local img = if v.currentVersionReadSuccess then nil else Config.Images.HUHEgg
+    function v.versionNotif()
+        send(img, v.currentVersion, {"Ok"})
+    end
+end
+
+do
+    local fn
+    if v.versionHistoryReadSuccess then
+        local changelogs = w.newEzier(.5, .3, .7, "Changelogs")
+        local scroll = o.scroll(changelogs.content, u.pos0, u.pos1)
+        scroll.AbsoluteCanvasSize = Enum.AutomaticSize.XY
+        local txt = o.txt(scroll, nil, nil, v.versionHistory)
+        txt.TextScaled = false
+        g.camUpd(Config.Sizing.ChangelogText, function(num)
+            txt.TextSize = num
+            txt.Size = u.fromV2(txt.TextBounds)
+        end)
+        fn = function()
+            changelogs:toggle()
+        end
+    else
+        local send = n.HUH()
+        fn = function()
+            send(v.versionHistory, {"Ok"})
+        end
+    end
+    v.openChangelogs = fn
+end
+
 
 ---- suggestions ----
 
@@ -976,7 +1062,7 @@ function s.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
         box.Text = ""
         if s.notifKeys[err] then return end
         s.notifKeys[err] = true
-        s.send(err.img or Config.EggImages.HUH, err.msg or "Error!", err.options or {"Ok"}, function(idx)
+        s.send(err.img or Config.Images.HUHEgg, err.msg or "Error!", err.options or {"Ok"}, function(idx)
             s.notifKeys[err] = nil
             if err.callback then
                 err.callback(idx)
@@ -1006,7 +1092,7 @@ function h:updCn()
         if self.cn then
             return
         end
-        self.cn = g.cn(g.run.RenderStepped:Connect(function()
+        self.cn = j.add(g.run.RenderStepped:Connect(function()
             local ping = g.ping
             for model, data in boxes do
                 if not model.Parent then
@@ -1027,7 +1113,7 @@ function h:updCn()
         end))
         return
     end
-    g.dcn(self.cn)
+    j.remove(self.cn)
     self.cn = nil
 end
 
@@ -1040,7 +1126,7 @@ function h:addHighlight(model: Model, data: highlightData)
     local tag = data.tag
     local col = data.col or u.nameColour(tag)
     local part = o.part(workspace, nil, nil, true)
-    local nameTag = g.addToDestroy(o.make("BillboardGui", {
+    local nameTag = j.add(o.make("BillboardGui", {
         AlwaysOnTop = true,
         Size = u.posWithOffset(5, 100, 1.25, 25),
         Adornee = part,
@@ -1059,7 +1145,7 @@ function h:addHighlight(model: Model, data: highlightData)
     self.boxes[model] = {
         part = part,
         tag = nameTag,
-        box = g.addToDestroy(o.make("BoxHandleAdornment", {
+        box = j.add(o.make("BoxHandleAdornment", {
             Adornee = part,
             Parent = workspace,
             Color3 = col,
@@ -1098,7 +1184,6 @@ function h:unhighlight()
         self:removeHighlight(model, stuff)
     end
 end
-
 
 ---- main window ----
 
@@ -1266,15 +1351,15 @@ do
     for _, plr in g.plrs:GetPlayers() do
         plrAdded(plr)
     end
-    g.cn(g.plrs.PlayerAdded:Connect(plrAdded))
-    g.cn(g.plrs.PlayerRemoving:Connect(function(plr)
+    j.add(g.plrs.PlayerAdded:Connect(plrAdded))
+    j.add(g.plrs.PlayerRemoving:Connect(function(plr)
         u.remove(plrNames, plr.Name)
         plrNamesToPlr[plr.Name] = nil
     end))
     local function plrCheck(name: string)
         local plr = plrNamesToPlr[name]
         if plr == g.plr then
-            return {msg = "That's you, silly!", img = Config.EggImages.XD}
+            return {msg = "That's you, silly!", img = Config.Images.XDEgg}
         end
         if plr then
             return
@@ -1312,6 +1397,20 @@ do
         local number = tonumber(num)
         if not number then
             return {msg = `{num} is not a number`}
+        end
+        if number < min or number > max then
+            return {msg = `Must be between {min} and {max}`}
+        end
+        return
+    end
+
+    local function integerRangeCheck(num: string, min: number, max: number)
+        local number = tonumber(num)
+        if not number then
+            return {msg = `{num} is not a number`}
+        end
+        if number % 1 ~= 0 then
+            return {msg = `{num} is not an integer`}
         end
         if number < min or number > max then
             return {msg = `Must be between {min} and {max}`}
@@ -1364,11 +1463,11 @@ do
                 )
 
                 local cn
-                cn = g.cn(g.run.RenderStepped:Connect(function(delta)
+                cn = j.add(g.run.RenderStepped:Connect(function(delta)
                     if not flying or not g.root or not g.hum then
                         velocity:Destroy()
                         gyro:Destroy()
-                        g.dcn(cn)
+                        j.add(cn)
                         return
                     end
                     local cameraCf = workspace.CurrentCamera.CFrame
@@ -1474,7 +1573,7 @@ do
 
         do -- infinite jump
             local inf = false
-            g.cn(g.uis.JumpRequest:Connect(function()
+            j.add(g.uis.JumpRequest:Connect(function()
                 if not inf then return end
                 g.hum:ChangeState(Enum.HumanoidStateType.Jumping)
             end))
@@ -1496,7 +1595,7 @@ do
                     return
                 end
                 local cn
-                cn = g.cn(g.run.Heartbeat:Connect(function()
+                cn = j.add(g.run.Heartbeat:Connect(function()
                     if not g.char then
                         return
                     end
@@ -1507,7 +1606,7 @@ do
                         part.CanCollide = not noclipping
                     end
                     if not noclipping then
-                        g.dcn(cn)
+                        j.cleanUpSingle(cn)
                     end
                 end))
             end)
@@ -1599,7 +1698,7 @@ do
             if not wallhecking or not g.char then return end
             high:addHighlight(g.char, {tag = "", col = u.nameColour(g.plr.Name), off = actual})
         end
-        g.cn(g.plr.CharacterAdded:Connect(upd))
+        j.add(g.plr.CharacterAdded:Connect(upd))
         upd()
         local btn
         btn = m.btn("Wallheck yourself", function()
@@ -1621,7 +1720,7 @@ do
         u.insert(stuff, {btn, box})
     end
 
-        m.addSection(Config.SectionImages.You, stuff)
+        m.addSection(Config.Images.YouIcon, stuff)
     end
 
     do -- Players
@@ -1736,7 +1835,7 @@ do
                 if plr == g.plr then
                     return
                 end
-                cns[plr] = g.cn(plr.CharacterAdded:Connect(function(char)
+                cns[plr] = j.add(plr.CharacterAdded:Connect(function(char)
                     chars[plr] = char
                     if wallhecking then
                         add(plr, char)
@@ -1755,7 +1854,7 @@ do
             g.plrs.PlayerRemoving:Connect(function(plr)
                 if plr == g.plr then return end
                 high:removeHighlightNice(chars[plr])
-                g.dcn(cns[plr])
+                j.cleanUpSingle(cns[plr])
                 cns[plr] = nil
                 chars[plr] = nil
             end)
@@ -1810,11 +1909,11 @@ do
                     add(char)
                 end
             end
-            g.cn(workspace.DescendantAdded:Connect(addHum))
+            j.add(workspace.DescendantAdded:Connect(addHum))
             for _, desc in workspace:GetDescendants() do
                 addHum(desc)
             end
-            g.cn(workspace.DescendantRemoving:Connect(function(desc)
+            j.add(workspace.DescendantRemoving:Connect(function(desc)
                 chars[desc] = nil
                 high:removeHighlightNice(desc)
             end))
@@ -1837,7 +1936,7 @@ do
             u.insert(stuff, {btn, box})
         end
 
-        m.addSection(Config.SectionImages.Players, stuff)
+        m.addSection(Config.Images.PlayersIcon, stuff)
     end
 
     do -- Objects
@@ -1870,7 +1969,7 @@ do
             u.insert(mouseCastsUp, up)
         end
 
-        g.cn(g.mouse.Button1Down:Connect(function()
+        j.add(g.mouse.Button1Down:Connect(function()
             local cast = workspace:Raycast(
                 g.cam.CFrame.Position,
                 g.mouse.Hit.LookVector * 99999,
@@ -1893,14 +1992,14 @@ do
             btn = m.btn("Baseplate", function()
                 if cn then
                     base.Parent = nil
-                    g.dcn(cn)
+                    j.add(cn)
                     cn = nil
                     btn.Text = "Baseplate"
                 else
                     base.Parent = workspace
                     local cf, size = g.char:GetBoundingBox()
                     local y = cf.Y - size.Y / 2 - 0.5
-                    cn = g.cn(g.run.RenderStepped:Connect(function()
+                    cn = j.add(g.run.RenderStepped:Connect(function()
                         local pos = g.root.Position
                         base.Position = Vector3.new(
                             pos.X,
@@ -1968,7 +2067,7 @@ do
         --     -- local select = o.make("SelectionBox")
         -- end
 
-        m.addSection(Config.SectionImages.Objects, stuff)
+        m.addSection(Config.Images.ObjectsIcon, stuff)
     end
 
     do -- Lighting
@@ -2092,7 +2191,7 @@ do
             u.insert(stuff, {btn, box})
         end
 
-        m.addSection(Config.SectionImages.Lighting, stuff)
+        m.addSection(Config.Images.LightingIcon, stuff)
     end
 
     do -- Misc
@@ -2101,53 +2200,105 @@ do
             m.stickyNote()
         end)})
 
-        do
+        u.insert(stuff, { -- current version, changelogs
+            m.btn("Version", v.versionNotif),
+            m.btn("Changelogs", v.openChangelogs)
+        })
+
+        do -- aim trainer
+            local size = 25
+            local time = 2
+            local amount = 10
             
-        end
-
-        do -- current version, changelogs
-            local success, txt = u.httpGet(Config.General.VersionHistory)
-            local msg
-            local img
-            local fn
-            if success then
-                local win = w.newEzier(0.4, 0.3, 0.5, "Changelogs")
-                local scroll = o.scroll(win.content, u.pos(0.05, 0.05), u.pos(0.9, 0.9))
-                o.list(scroll, false, Enum.VerticalAlignment.Top, Enum.HorizontalAlignment.Left)
-                local things = {}
-                local lines = txt:split("\n")
-                msg = lines[1]
-                img = Config.EggImages.Normal
-                for _, line in lines do
-                    local fdsf = o.txt(scroll, nil, u.pos(1), line)
-                    fdsf.TextXAlignment = Enum.TextXAlignment.Left
-                    u.insert(things, fdsf)
-                end
-                g.camUpd(Config.Sizing.ChangeLogLine, function(num)
-                    for _, thin in things do
-                        thin.Size = u.posWithOffset(1, 0, 0, num)
+            local win = w.newEzier(.5, .5, 0.5, "Aim trainer")
+            local txt = o.txt(win.content, nil, u.pos1)
+            local btn = o.txt(win.content, nil, nil, "X", 0, true, "Secondary")
+            o.strocorn(btn)
+            local notif = n.normal(3)
+            local startBtn = m.btn("Aim trainer", function()
+                win:toggle()
+                if not win.enabled then return end
+                btn.Visible = false
+                local sSize = size / 100
+                local maxPos = 1 - sSize
+                btn.Size = u.pos(sSize, sSize)
+                local sTime = time
+                local sAmount = amount
+                local amountPassed = 0
+                local amountGotten = 0
+                local startup
+                local startupClock = 3
+                local thread = coroutine.running()
+                startup = j.add(g.run.RenderStepped:Connect(function(delta)
+                    startupClock -= delta
+                    local ceil = math.ceil(startupClock)
+                    txt.Text = `{ceil}`
+                    if ceil == 0 then
+                        startup:Disconnect()
+                        task.spawn(thread)
                     end
-                end)
-                fn = function()
-                    win:toggle()
+                    if not win.enabled then
+                        startup:Disconnect()
+                        task.cancel(thread)
+                        txt.Text = ""
+                    end
+                end))
+                coroutine.yield()
+                txt.Text = ""
+                btn.Visible = true
+                for _ = 1, sAmount do
+                    btn.Position = u.pos(
+                        g.rng:NextNumber(0, maxPos),
+                        g.rng:NextNumber(0, maxPos)
+                    )
+                    local delay
+                    local cn = btn.Activated:Once(function()
+                        amountGotten += 1
+                        task.spawn(thread)
+                        delay:Disconnect()
+                    end)
+                    local start = tick()
+                    delay = j.add(g.run.RenderStepped:Connect(function()
+                        if tick() - start < sTime and win.enabled then return end
+                        cn:Disconnect()
+                        delay:Disconnect()
+                        task.spawn(thread)
+                    end))
+                    coroutine.yield()
+                    if not win.enabled then break end
+                    amountPassed += 1
                 end
-            else
-                msg = `Could not get version: {txt}`
-                img = Config.EggImages.HUH
-                fn = function()
-                    errSend(`Could not open changelogs: {txt}`)
+                notif(`You got {amountGotten}/{amountPassed} targets`, {"Ok"})
+                win:disable()
+            end)
+            local sizeBox = m.box("Size", {"1", "50", "100"}, function(num)
+                local err = numberRangeCheck(num, 1, 100)
+                if err then
+                    return err
                 end
-            end
-            local notif = n.capSend(1)
-            u.insert(stuff, {
-                m.btn("Version", function()
-                    notif(img, msg, {"Ok"})
-                end),
-                m.btn("Changelogs", fn)
-            })
+                size = tonumber(num)
+                return
+            end)
+            local timeBox = m.box("Time", {"0.5", "1", "2", "3"}, function(num)
+                local err = numberRangeCheck(num, 0.1, 5)
+                if err then
+                    return err
+                end
+                time = tonumber(num)
+                return
+            end)
+            local amountBox = m.box("Amount", {"5", "20", "100"}, function(num)
+                local err = integerRangeCheck(num, 1, 100)
+                if err then
+                    return err
+                end
+                amount = tonumber(num)
+                return
+            end)
+            u.insert(stuff, {startBtn, sizeBox, timeBox, amountBox})
         end
 
-        m.addSection(Config.SectionImages.Misc, stuff)
+        m.addSection(Config.Images.MiscIcon, stuff)
     end
 end
 
@@ -2155,45 +2306,54 @@ m.goToSection(1)
 
 ---- button ----
 
-b.w = w.new(.15, .2, .1, .15, .2, .25, "Open", true, true)
-b.w.ui.Position = u.pos(.825, .05)
+b.win = w.new(.15, .2, .1, .15, .2, .25, "Open", true, true)
+b.win.ui.Position = u.pos(.825, .05)
 
 b.cred = w.newEzier(.25, .2, .3, "Credits")
 o.txt(b.cred.content, nil, u.pos1, "Eggsploits made by Cabldebelegg at the request of Killercrusher9023")
 
 do
     local send = n.sad()
-    b.w:addTxtBtn("X", function()
+    b.win:addTxtBtn("X", function()
         send("Remove Eggsploits?", {"Yes", "No"}, function(num)
-            if num == 1 then
-                u.dcnAll(g.cns)
-                for _, win in w.windows do
-                    win:destroy()
-                end
-                for _, inst in g.toDestroy do
-                    inst:Destroy()
-                end
-                Config.General.InitTable[Config.General.InitKey] = nil
-            end
+            if num ~= 1 then return end
+            g.remove()
         end)
     end)
 end
-b.w:addTxtBtn("?", function()
+b.win:addTxtBtn("?", function()
     b.cred:toggle()
 end)
-b.btn = o.img(b.w.content, nil, u.pos1, Config.EggImages.Normal, 0, true, "Primary")
+b.btn = o.img(b.win.content, nil, u.pos1, Config.Images.ExpressionlessEgg, 0, true, "Primary")
 o.corn(b.btn)
 o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.General.Open.Name}`)
 b.btn.Activated:Connect(function()
     m.w:toggle()
 end)
-g.cn(g.uis.InputEnded:Connect(function(input, gameProcessedEvent)
+j.add(g.uis.InputEnded:Connect(function(input, gameProcessedEvent)
     if not gameProcessedEvent and input.KeyCode == Config.General.Open then
         m.w:toggle()
     end
 end))
-b.w:enable()
 
-n.send(Config.EggImages.Normal, "Eggsploits initialised", {"Ok"})
+do
+    local img = o.make("ImageLabel") :: ImageLabel
+    local content = g.services.ContentProvider
+    for _, id in Config.Images do
+        img.Image = u.asset(id)
+        content:PreloadAsync({img})
+    end
+end
 
-Config.General.InitTable[Config.General.InitKey] = n.XD()
+b.win:enable()
+
+n.send(Config.Images.ExpressionlessEgg, "Eggsploits initialised", {"Ok"})
+
+task.wait(1)
+
+if v.currentVersionReadSuccess and v.lastVersionReadSuccess and v.currentVersion ~= v.lastVersion then
+    n.send(nil, `Updated to {v.currentVersion}`, {"Changelogs"}, function(idx)
+        if idx ~= 1 then return end
+        v.openChangelogs()
+    end)
+end

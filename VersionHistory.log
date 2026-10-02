@@ -1,10 +1,28 @@
-V0.3 - 28/09/26
+V0.1.0 - 2/10/26
+big backend update:
+- cleaned up my garbage code
+- made a janitor system
+- version history is nicer
+- notifies users when an update has occured
+- config table is better
+- everything is generally just better
+
+started use sUNC:
+- its very berry nice
+- makes my life easier
+- script is less detected now :D
+
+aim trainer:
+- ohh i also made an aim trainer game
+- may be more little games coming soon
+
+V0.0.3 - 28/09/26
 some random fixes:
 - npc wallhecks actually work ok now
 - made ping related things better
 - version history actually makes sense
 
-V0.2 - 27/09/26
+V0.0.2 - 27/09/26
 cool stuff:
 - added changelog system :D
 - & also did it up with the repo so it can auto update
@@ -18,13 +36,7 @@ oh yeah, i also made it so that the ui is always on top
 bc eggsploits def def bezt script ever, right?
 yea no XD, anyway..
 
-V0.1 - 26/09/26
-minor bug fixes like:
-- fling going in front of players
-- I FORGOT THE OTHER ONE >:(
-- ima terrible changelogger XD
-
-V0.0 - 26/09/26
+V0.0.0 - 26/09/26
 had systems such as:
 - windows
 - notifications

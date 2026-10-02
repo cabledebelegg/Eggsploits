@@ -978,7 +978,7 @@ do
     if v.versionHistoryReadSuccess then
         local changelogs = w.newEzier(.5, .3, .7, "Changelogs")
         local scroll = o.scroll(changelogs.content, u.pos0, u.pos1)
-        scroll.AbsoluteCanvasSize = Enum.AutomaticSize.XY
+        scroll.AutomaticCanvasSize = Enum.AutomaticSize.XY
         local txt = o.txt(scroll, nil, nil, v.versionHistory)
         txt.TextScaled = false
         g.camUpd(Config.Sizing.ChangelogText, function(num)

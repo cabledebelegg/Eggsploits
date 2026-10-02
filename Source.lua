@@ -95,7 +95,9 @@ end
 
 if Config.General.InitTable[Config.General.InitKey] then
     Config.General.InitTable[Config.General.InitKey](Config.General.RestartWhenAlreadyInitialised)
-    return
+    if not Config.General.RestartWhenAlreadyInitialised then
+        return
+    end
 end
 
 ---- utils, janitor, object, global, notification, window, version, suggestions, highlight, main, button ----
@@ -237,11 +239,11 @@ function u.httpGet(url: string): (boolean, string)
 end
 
 function u.readFile(path: string): (boolean, string)
-    return u.pcall(readFile, path)
+    return u.pcall(readFile or readfile, path)
 end
 
 function u.writeFile(path: string, data: string): boolean
-    return u.pcall(writeFile, path, data)
+    return u.pcall(writeFile or writefile, path, data)
 end
 
 ---- janitor ----
@@ -294,7 +296,6 @@ function j.cleanUp()
     for idx = #j.stuff, 1, -1 do
         j.cleanUpSingleRaw(idx, j.stuff[idx])
     end
-    script:Destroy()
 end
 
 ---- object ----
@@ -487,9 +488,10 @@ g.run = g.services.RunService :: RunService
 g.twen = g.services.TweenService :: TweenService
 g.uis = g.services.UserInputService :: UserInputService
 g.light = g.services.Lighting :: Lighting
+g.txt = g.services.TextService :: TextService
 g.plrs = g.services.Players :: Players
 g.plr = g.plrs.LocalPlayer
-g.core = g.run:IsStudio() and g.services.CoreGui or g.plr:WaitForChild("PlayerGui")
+g.core = g.run:IsStudio() and g.plr:WaitForChild("PlayerGui") or g.services.CoreGui
 g.mouse = g.plr:GetMouse()
 
 g.ui = j.add(o.make("ScreenGui", {
@@ -832,6 +834,7 @@ function w.new(
     self.drag.DragEnd:Connect(function()
         dragging = false
     end)
+    self:updTopbarSize(w.topbarSize)
     return self
 end
 
@@ -976,14 +979,29 @@ end
 do
     local fn
     if v.versionHistoryReadSuccess then
-        local changelogs = w.newEzier(.5, .3, .7, "Changelogs")
+        local changelogs = w.newEzier(.4, .3, .6, "Changelogs")
         local scroll = o.scroll(changelogs.content, u.pos0, u.pos1)
-        scroll.AutomaticCanvasSize = Enum.AutomaticSize.XY
-        local txt = o.txt(scroll, nil, nil, v.versionHistory)
-        txt.TextScaled = false
+        scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+        local txt = o.make("TextLabel", {
+            Text = v.versionHistory,
+            Size = u.pos1,
+            Position = u.pos0,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            TextScaled = false,
+            TextWrapped = false,
+            Parent = scroll,
+        }, "Text")
+        local params = o.make("GetTextBoundsParams", {
+            Width = 0,
+            RichText = false,
+        })
         g.camUpd(Config.Sizing.ChangelogText, function(num)
             txt.TextSize = num
-            txt.Size = u.fromV2(txt.TextBounds)
+            params.Text = txt.Text
+            params.Font = txt.FontFace
+            params.Size = num
+            scroll.CanvasSize = u.fromV2(g.txt:GetTextBoundsAsync(params))
         end)
         fn = function()
             changelogs:toggle()
@@ -1187,21 +1205,21 @@ end
 
 ---- main window ----
 
-m.w = w.newEzier(0.5, 0.3, 0.7, "Eggsploits")
+m.win = w.newEzier(0.5, 0.3, 0.7, "Eggsploits")
 
-o.paddingEzy(m.w.content, .05, .05, .1, .1)
+o.paddingEzy(m.win.content, .05, .05, .1, .1)
 
 m.nav = o.make("Frame", {
     Position = u.pos(.9),
     Size = u.pos(.1, 1),
-    Parent = m.w.content
+    Parent = m.win.content
 }, "Secondary")
 o.strocorn(m.nav)
 o.list(m.nav, nil, nil, Enum.HorizontalAlignment.Center, Enum.UIFlexAlignment.SpaceEvenly, 0.05)
 
 m.padding = 1.25
 m.panel = o.make("Frame", {
-    Parent = m.w.content,
+    Parent = m.win.content,
     Position = u.pos0,
     Size = u.pos(.85, 1),
     BackgroundTransparency = 1,
@@ -1746,7 +1764,7 @@ do
             u.insert(stuff, {btn, box})
         end
 
-        do
+        do -- fling
             local plr
             local speed = 100
             local flinging = false
@@ -1754,14 +1772,14 @@ do
             btn = m.btn("Fling", function()
                 flinging = not flinging
                 btn.Text = flinging and "Unfling" or "Fling"
-                if not flinging or not g.char or not plr or not plr.Character then
+                if not flinging or not g.char or not plr then
                     return
                 end
                 local origin = g.root.CFrame
                 local connect
                 connect = g.run.Heartbeat:Connect(function()
                     local root = g.root
-                    if not flinging or plr.Parent ~= g.plrs then
+                    if not flinging then
                         connect:Disconnect()
                         root:PivotTo(origin)
                         root.Anchored = true
@@ -2328,11 +2346,11 @@ b.btn = o.img(b.win.content, nil, u.pos1, Config.Images.ExpressionlessEgg, 0, tr
 o.corn(b.btn)
 o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.General.Open.Name}`)
 b.btn.Activated:Connect(function()
-    m.w:toggle()
+    m.win:toggle()
 end)
 j.add(g.uis.InputEnded:Connect(function(input, gameProcessedEvent)
     if not gameProcessedEvent and input.KeyCode == Config.General.Open then
-        m.w:toggle()
+        m.win:toggle()
     end
 end))
 

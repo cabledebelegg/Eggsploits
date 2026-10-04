@@ -11,7 +11,7 @@ local Config = {
     },
     Highlight = {
         Transparency = 1/4,
-        MaxAmount = 100,
+        MaxAmount = 500,
     },
     Notification = {
         Time = 7.5,
@@ -477,6 +477,8 @@ end
 
 g.services = setmetatable({}, {
 	__index = function(self, name)
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
         local service = game:GetService(name)
 		local ref = cloneref and cloneref(service) or service
         rawset(self, name, ref)
@@ -549,16 +551,46 @@ do
     end
 end
 
+function g.tp(v0: CFrame | Model | BasePart | Vector3 | number, v1: number?, v2: number?)
+    local cf = CFrame.identity
+    local typee = typeof(v0)
+    if typee == "CFrame" then
+        cf = v0
+    elseif typee == "Instance" then
+        if (v0 :: any):IsA("Model") then
+            cf = (v0 :: any):GetPivot()
+        elseif (v0 :: any):IsA("BasePart") then
+            cf = (v0 :: any).CFrame
+        end
+    elseif typee == "Vector3" then
+        cf = CFrame.new(v0 :: Vector3)
+    elseif typee == "number" and v1 and v2 then
+        cf = CFrame.new(v0 :: number, v1, v2)
+    end
+    g.char:PivotTo(cf)
+end
+
+function g.stay()
+    local root = g.root
+    root.Anchored = true
+    while root.AssemblyLinearVelocity ~= Vector3.zero or root.AssemblyAngularVelocity ~= Vector3.zero do
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        g.run.Stepped:Wait()
+    end
+    root.Anchored = false
+end
+
 g.rng = Random.new()
 
 g.ping = 0
 g.pingRound = 0
-task.spawn(function()
+j.add(task.spawn(function()
     while task.wait(Config.General.PingUpdateTime) do
         g.pingRound = g.plr:GetNetworkPing()
         g.ping = g.pingRound / 2
     end
-end)
+end))
 
 g.camUpd(Config.Sizing.CornerRadius, function(num)
     local rad = UDim.new(0, num)
@@ -970,7 +1002,7 @@ end
 
 do
     local send = n.capSend()
-    local img = if v.currentVersionReadSuccess then nil else Config.Images.HUHEgg
+    local img = if v.currentVersionReadSuccess then Config.Images.ExpressionlessEgg else Config.Images.HUHEgg
     function v.versionNotif()
         send(img, v.currentVersion, {"Ok"})
     end
@@ -1052,8 +1084,7 @@ function s.addBtn(txt: string, box: TextBox, idx: number)
 end
 
 s.notifKeys = {}
-s.send = n.capSend(3)
-type suggestCheck = (string) -> ({msg: string?, img: number?, options: {string}, callback: notifCallback}?)
+type suggestCheck = (string) -> string?
 function s.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
     box:GetPropertyChangedSignal("Text"):Connect(function()
         s.clear()
@@ -1080,12 +1111,7 @@ function s.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
         box.Text = ""
         if s.notifKeys[err] then return end
         s.notifKeys[err] = true
-        s.send(err.img or Config.Images.HUHEgg, err.msg or "Error!", err.options or {"Ok"}, function(idx)
-            s.notifKeys[err] = nil
-            if err.callback then
-                err.callback(idx)
-            end
-        end)
+        n.send(Config.Images.HUHEgg, err, {"Ok"})
     end)
 end
 
@@ -1097,7 +1123,8 @@ end)
 
 h.__index = h
 h.highlightAmount = 0
-h.err = n.sad(3)
+h.notified = false
+h.err = n.sad()
 type highlightData = {tag: string, off: boolean?, col: Color3?}
 
 function h.new()
@@ -1136,9 +1163,12 @@ function h:updCn()
 end
 
 function h:addHighlight(model: Model, data: highlightData)
-    if h.highlightAmount == Config.Highlight.MaxAmount then
+    if h.highlightAmount >= Config.Highlight.MaxAmount and not h.notified then
         h.err("Max highlights reached", {"Ok"})
+        h.notified = false
         return
+    elseif h.highlightAmount < Config.Highlight.MaxAmount then
+        h.notified = false
     end
     h.highlightAmount += 1
     local tag = data.tag
@@ -1302,6 +1332,77 @@ function m.box(txt: string, suggestions: {string}, check: suggestCheck)
     return box
 end
 
+m.env = {}
+m.env.__index = m.env
+
+function m.env.new(...: any)
+    return setmetatable({
+        vars = {...},
+        stuff = {},
+        varIdx = 0,
+        err = n.HUH(),
+    }, m.env)
+end
+
+type envFn = ({any}, InputObject, number) -> (string?)
+
+function m.env:doErr(str: string?)
+    if str then
+        self.err(str, {"Ok"})
+    end
+end
+
+function m.env:btn(txt: string, fn: envFn)
+    u.insert(self.stuff, m.btn(txt, function(input: InputObject, clicks: number)
+        self:doErr(fn(self.vars, input, clicks))
+    end))
+    return self
+end
+
+function m.env:getIdx(): number
+    self.varIdx += 1
+    return self.varIdx
+end
+
+function m.env:toggle(txt: string, unTxt: string, on: envFn?, off: envFn?)
+    local idx = self:getIdx()
+    local btn
+    btn = m.btn(txt, function(input: InputObject, clicks: number)
+        local flipped = not self.vars[idx]
+        self.vars[idx] = flipped
+        local fn
+        if flipped then
+            fn = on
+            btn.Text = unTxt
+        else
+            fn = off
+            btn.Text = txt
+        end
+        if fn then
+            local err = fn(self.vars, input, clicks)
+            if err then
+                self.vars[idx] = false
+                btn.Text = txt
+            end
+            self:doErr(err)
+        end
+    end)
+    u.insert(self.stuff, btn)
+    return self
+end
+
+function m.env:box(txt: string, suggestions: {string}, check: (string) -> (any, string?))
+    local idx = self:getIdx()
+    u.insert(self.stuff, m.box(txt, suggestions, function(str: string)
+        local val, err = check(str)
+        if not err then
+            self.vars[idx] = val
+        end
+        return err
+    end))
+    return self
+end
+
 do
     local stickies = 0
     local send = n.HUH()
@@ -1351,14 +1452,6 @@ g.camUpd(Config.Sizing.ListPadding, function(num)
 end)
 
 do
-    local errSend
-    do
-        local send = n.HUH(3)
-        errSend = function(msg: string)
-            send(msg, {"Ok"})
-        end
-    end
-
     local plrNames = {}
     local plrNamesToPlr = {}
     local function plrAdded(plr: Player)
@@ -1376,302 +1469,290 @@ do
     end))
     local function plrCheck(name: string)
         local plr = plrNamesToPlr[name]
-        if plr == g.plr then
-            return {msg = "That's you, silly!", img = Config.Images.XDEgg}
-        end
-        if plr then
-            return
-        end
-        return {msg = `{name} is not a player`}
-    end
-    local function getPlayer(name: string): Player?
-        local plr = plrNamesToPlr[name]
         if plr then
             return plr
+        elseif plr == g.plr then
+            return nil, "That is u 🙏"
         end
-        errSend(`{name} is not in the game`)
+        return nil, "Must be a player"
+    end
+
+    local function plrCheckAgain(plr: Player?): string?
+        if not plr then
+            return "Select a player"
+        end
+        if not plr.Parent then
+            return `{plr.Name} is no longer in the game`
+        end
+        if not plr.Character then
+            return `{plr.Name} has no character`
+        end
         return
     end
 
     local function numberCheck(num: string)
-        if not tonumber(num) then
-            return {msg = `{num} is not a number`}
+        local to = tonumber(num)
+        if not to then
+            return nil, "Must be a number"
         end
-        return
+        return to
     end
 
     local function positiveCheck(num: string)
         local to = tonumber(num)
         if not to then
-            return {msg = `{num} is not a number`}
+            return nil, "Must be a number"
         end
         if to < 0 then
-            return {msg = `{num} must be over 0`}
+            return nil, "Must be over 0"
         end
-        return
+        return to
     end
 
-    local function numberRangeCheck(num: string, min: number, max: number)
-        local number = tonumber(num)
-        if not number then
-            return {msg = `{num} is not a number`}
+    local function numberRangeCheck(min: number, max: number)
+        return function(str)
+            local to = tonumber(str)
+            if not to then
+                return nil, "Must be a number"
+            end
+            if to < min or to > max then
+                return nil, "Must be between {min} and {max}"
+            end
+            return to
         end
-        if number < min or number > max then
-            return {msg = `Must be between {min} and {max}`}
-        end
-        return
     end
 
-    local function integerRangeCheck(num: string, min: number, max: number)
-        local number = tonumber(num)
-        if not number then
-            return {msg = `{num} is not a number`}
+    local function integerRangeCheck(min: number, max: number)
+        return function(str)
+            local to = tonumber(str)
+            if not to then
+                return nil, "Must be a number"
+            end
+            if to % 1 ~= 0 then
+                return nil, "Must be an integer"
+            end
+            if to < min or to > max then
+                return nil, "Must be between {min} and {max}"
+            end
+            return to
         end
-        if number % 1 ~= 0 then
-            return {msg = `{num} is not an integer`}
-        end
-        if number < min or number > max then
-            return {msg = `Must be between {min} and {max}`}
-        end
-        return
     end
 
     local yesNo = {"yes", "no"}
-    local function yesNoBool(str: string): boolean?
-        str = str:lower()
-        return
-            if str == "yes"
-            then true
-            elseif str == "no"
-            then false
-            else nil
-    end
     local function yesNoCheck(str: string)
-        if yesNoBool(str) == nil then
-            return {msg = `Must be yes or no`}
+        str = str:lower()
+        if str == "yes" then
+            return true
+        elseif str == "no" then
+            return false
         end
-        return
+        return nil, "Must be yes or no"
     end
+
+    local speeds = {"10", "50", "100", "500", "1000"}
 
     do -- You
         local stuff = {}
         do -- fly
-            local flying = false
-            local speed = 100
-            local btn
-            btn = m.btn("Fly", function()
-                flying = not flying
-                btn.Text = flying and "Unfly" or "Fly"
-                if not flying or not g.root or not g.hum then return end
+            u.insert(
+                stuff,
+                m.env.new(false, 100)
+                :toggle(
+                    "Fly",
+                    "Unfly",
+                    function(vars: {any})
+                        local velocity = o.make(
+                            "LinearVelocity",
+                            {
+                                ForceLimitsEnabled = false,
+                                Parent = workspace
+                            }
+                        )
+                        local gyro = o.make(
+                            "AlignOrientation",
+                            {
+                                Mode = Enum.OrientationAlignmentMode.OneAttachment,
+                                RigidityEnabled = true,
+                                Parent = workspace
+                            }
+                        )
 
-                local velocity = o.make(
-                    "LinearVelocity",
-                    {
-                        ForceLimitsEnabled = false,
-                        Parent = workspace
-                    }
-                )
-                local gyro = o.make(
-                    "AlignOrientation",
-                    {
-                        Mode = Enum.OrientationAlignmentMode.OneAttachment,
-                        RigidityEnabled = true,
-                        Parent = workspace
-                    }
-                )
+                        local cn
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            if not vars[1] then
+                                velocity:Destroy()
+                                gyro:Destroy()
+                                j.cleanUpSingle(cn)
+                                return
+                            end
+                            local cameraCf = workspace.CurrentCamera.CFrame
+                            local look = (cameraCf.LookVector * Vector3.new(1, 0, 1)).Unit
+                            local move = g.hum.MoveDirection.Unit
 
-                local cn
-                cn = j.add(g.run.RenderStepped:Connect(function(delta)
-                    if not flying or not g.root or not g.hum then
-                        velocity:Destroy()
-                        gyro:Destroy()
-                        j.add(cn)
-                        return
+                            velocity.VectorVelocity = (
+                                cameraCf.LookVector * u.rmNan(look:Dot(move)) +
+                                cameraCf.RightVector * u.rmNan(cameraCf.RightVector:Dot(move))
+                            ) * vars[2]
+                            gyro.CFrame = cameraCf
+
+                            velocity.Attachment0 = g.att
+                            gyro.Attachment0 = g.att
+
+                            for _, track in g.anim:GetPlayingAnimationTracks() do
+                                track:Stop()
+                            end
+
+                            print(unpack(vars))
+                        end))
                     end
-                    local cameraCf = workspace.CurrentCamera.CFrame
-                    local look = (cameraCf.LookVector * Vector3.new(1, 0, 1)).Unit
-                    local move = g.hum.MoveDirection.Unit
-
-                    velocity.VectorVelocity = (
-                        cameraCf.LookVector * u.rmNan(look:Dot(move)) +
-                        cameraCf.RightVector * u.rmNan(cameraCf.RightVector:Dot(move))
-                    ) * speed
-                    gyro.CFrame = cameraCf
-
-                    velocity.Attachment0 = g.att
-                    gyro.Attachment0 = g.att
-
-                    for _, track in g.anim:GetPlayingAnimationTracks() do
-                        track:Stop()
-                    end
-                end))
-            end)
-            local box = m.box("Speed", {"10", "100", "1000"}, function(num)
-                local err = numberCheck(num)
-                if err then
-                    return err
-                end
-                speed = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+                )
+                :box(
+                    "Speed",
+                    speeds,
+                    positiveCheck
+                )
+                .stuff
+            )
         end
 
         do -- setwalk
-            local set = false
-            local speed = 0
-            local newSpeed = 0
-            local btn
-            btn = m.btn("Set Walk", function()
-                if not g.hum then
-                    return
-                end
-                set = not set
-                btn.Text = set and "Unset Walk" or "Set Walk"
-                if not set then
-
-                    return
-                end
-                speed = g.hum.WalkSpeed
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.hum.WalkSpeed = newSpeed
-                    if not set then
-                        cn:Disconnect()
-                        g.hum.WalkSpeed = speed
+            local last = 0
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false, 32)
+                :toggle(
+                    "Set walk",
+                    "Unset walk",
+                    function(vars)
+                        last = g.hum.WalkSpeed
+                        cn = j.add(g.run.RenderStepped:Connect(function(delta)
+                            g.hum.WalkSpeed = vars[2]
+                        end))
+                    end,
+                    function()
+                        g.hum.WalkSpeed = last
+                        j.cleanUpSingle(cn)
                     end
-                end)
-            end)
-            local box = m.box("Pace", {"10", "20", "100"}, function(num)
-                local err = positiveCheck(num)
-                if err then
-                    return err
-                end
-                newSpeed = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+                )
+                :box(
+                    "Pace",
+                    speeds,
+                    positiveCheck
+                )
+                .stuff
+            )
         end
 
         do -- setjump
-            local set = false
-            local jump = 0
-            local newJump = 0
-            local btn
-            btn = m.btn("Set Jump", function()
-                if not g.hum then
-                    return
-                end
-                set = not set
-                btn.Text = set and "Unset Jump" or "Set Jump"
-                if not set then
-
-                    return
-                end
-                jump = g.hum.JumpHeight
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.hum.JumpHeight = newJump
-                    if not set then
-                        cn:Disconnect()
-                        g.hum.JumpHeight = jump
+            local last = 0
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false, 100)
+                :toggle(
+                    "Set jump",
+                    "Unset jump",
+                    function(vars)
+                        last = g.hum.JumpHeight
+                        cn = j.add(g.run.RenderStepped:Connect(function(delta)
+                            g.hum.JumpHeight = vars[2]
+                        end))
+                    end,
+                    function()
+                        g.hum.JumpHeight = last
+                        j.cleanUpSingle(cn)
                     end
-                end)
-            end)
-            local box = m.box("Height", {"10", "25", "50"}, function(num)
-                local err = positiveCheck(num)
-                if err then
-                    return err
-                end
-                newJump = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+                )
+                :box(
+                    "Power",
+                    speeds,
+                    positiveCheck
+                )
+                .stuff
+            )
         end
 
         do -- infinite jump
-            local inf = false
-            j.add(g.uis.JumpRequest:Connect(function()
-                if not inf then return end
-                g.hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            end))
-            local btn
-            btn = m.btn("Infinite jump", function()
-                inf = not inf
-                btn.Text = inf and "Uninfinite jump" or "Infinite jump"
-            end)
-            u.insert(stuff, {btn})
-        end
-
-        do -- noclip
-            local noclipping = false
-            local btn
-            btn = m.btn("Noclip", function()
-                noclipping = not noclipping
-                btn.Text = noclipping and "Unnoclip" or "Noclip"
-                if not noclipping then
-                    return
-                end
-                local cn
-                cn = j.add(g.run.Heartbeat:Connect(function()
-                    if not g.char then
-                        return
-                    end
-                    for _, part in g.char:GetDescendants() do
-                        if not part:IsA("BasePart") then
-                            continue
-                        end
-                        part.CanCollide = not noclipping
-                    end
-                    if not noclipping then
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false, 32)
+                :toggle(
+                    "Infinite jump",
+                    "Finite jump",
+                    function()
+                        cn = j.add(g.uis.JumpRequest:Connect(function()
+                            g.hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                        end))
+                    end,
+                    function()
                         j.cleanUpSingle(cn)
                     end
-                end))
-            end)
-            u.insert(stuff, {btn})
+                )
+                .stuff
+            )
         end
 
+        u.insert( -- noclip
+            stuff,
+            m.env.new(false)
+            :toggle(
+                "Noclip",
+                "Unnoclip",
+                function(vars)
+                    local cn
+                    cn = j.add(g.run.Heartbeat:Connect(function()
+                        local noclipping = vars[1]
+                        for _, part in g.char:GetDescendants() do
+                            if not part:IsA("BasePart") then
+                                continue
+                            end
+                            part.CanCollide = not noclipping
+                        end
+                        if not noclipping then
+                            j.cleanUpSingle(cn)
+                        end
+                    end))
+                end
+            )
+            .stuff
+        )
+
         do -- tp
-            local suggestions = {"-100", "-50", "50", "100"}
-            local x = 0
-            local y = 0
-            local z = 0
-            local btn = m.btn("Tp", function()
-                if not g.root then
-                    return
-                end
-                g.root:PivotTo(CFrame.new(x, y, z))
-            end)
-            local boxX = m.box("X", suggestions, function(num)
-                local err = numberCheck(num)
-                if err then
-                    return err
-                end
-                x = tonumber(num)
-                return
-            end)
-            local boxY = m.box("Y", suggestions, function(num)
-                local err = numberCheck(num)
-                if err then
-                    return err
-                end
-                y = tonumber(num)
-                return
-            end)
-            local boxZ = m.box("Z", suggestions, function(num)
-                local err = numberCheck(num)
-                if err then
-                    return err
-                end
-                z = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, boxX, boxY, boxZ})
+            local suggestions = {"-1000", "-500", "-100", "-50", "50", "100", "500", "1000"}
+            u.insert(
+                stuff,
+                m.env.new(false, 0, 0, 0)
+                :btn(
+                    "Tp",
+                    function(vars)
+                        g.tp(unpack(vars))
+                    end
+                )
+                :box(
+                    "X",
+                    suggestions,
+                    numberCheck
+                )
+                :box(
+                    "Y",
+                    suggestions,
+                    numberCheck
+                )
+                :box(
+                    "Z",
+                    suggestions,
+                    numberCheck
+                )
+                .stuff
+            )
         end
 
         do -- coords
             local send = n.normal(3)
-            local btn = m.btn("Coords", function()
+            u.insert(stuff, {
+                m.btn("Coords", function()
                 if not g.root then
                     return
                 end
@@ -1684,59 +1765,71 @@ do
                     m.stickyNote(txt)
                 end)
             end)
-            u.insert(stuff, {btn})
+            })
         end
 
         do -- anchor
-            local achored = false
-            local btn
-            btn = m.btn("Anchor", function()
-                achored = not achored
-                btn.Text = achored and "Unanchor" or "Anchor"
-                if not achored then
-                    return
-                end
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.root.Anchored = achored
-                    if not achored then
-                        cn:Disconnect()
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false)
+                :toggle(
+                    "Anchor",
+                    "Unanchor",
+                    function(vars)
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            local anchored = vars[1]
+                            g.root.Anchored = anchored
+                            if not anchored then
+                                j.cleanUpSingle(cn)
+                            end
+                        end))
                     end
-                end)
-            end)
-            u.insert(stuff, {btn})
+                )
+                .stuff
+            )
         end
 
         do -- wallheck yourself
-        local high = h.new()
-        local wallhecking = false
-        local actual = nil
-        local function upd()
-            high:unhighlight()
-            if not wallhecking or not g.char then return end
-            high:addHighlight(g.char, {tag = "", col = u.nameColour(g.plr.Name), off = actual})
+            local high = h.new()
+            local vars
+            local function upd()
+                high:unhighlight()
+                if not vars[1] then return end
+                high:addHighlight(g.char, {tag = "", col = u.nameColour(g.plr.Name), off = vars[2]})
+            end
+            j.add(g.plr.CharacterAdded:Connect(upd))
+            local env = m.env.new(false)
+                :toggle(
+                    "Wallheck yourself",
+                    "Unwallheck yourself",
+                    upd,
+                    upd
+                )
+                :box(
+                    "Guess actual position",
+                    yesNo,
+                    function(str)
+                        local yes, err = yesNoCheck(str)
+                        if err then
+                            return nil, err
+                        end
+                        local actual =
+                            if yes
+                            then false
+                            else nil
+                        for _, data in high.boxes do
+                            data.off = actual
+                        end
+                        return actual
+                    end
+                )
+            vars = env.vars
+            u.insert(
+                stuff,
+                env.stuff
+            )
         end
-        j.add(g.plr.CharacterAdded:Connect(upd))
-        upd()
-        local btn
-        btn = m.btn("Wallheck yourself", function()
-            wallhecking = not wallhecking
-            upd()
-            btn.Text = wallhecking and "Unwallheck yourself" or "Wallheck yourself"
-        end)
-        local box = m.box("Guess actual position", yesNo, function(str)
-            local err = yesNoCheck(str)
-            if err then
-                return err
-            end
-            actual = if yesNoBool(str) then false else nil
-            for _, data in high.boxes do
-                data.off = actual
-            end
-            return
-        end)
-        u.insert(stuff, {btn, box})
-    end
 
         m.addSection(Config.Images.YouIcon, stuff)
     end
@@ -1744,92 +1837,103 @@ do
     do -- Players
         local stuff = {}
 
-        do -- tp
-            local plrName = ""
-            local btn = m.btn("Tp", function()
-                local plr = getPlayer(plrName)
-                if not g.char or not plr or not plr.Character then
-                    return
-                end
-                g.char:PivotTo(plr.Character:GetPivot())
-            end)
-            local box = m.box("Player", plrNames, function(name)
-                local err = plrCheck(name)
-                if err then
-                    return err
-                end
-                plrName = name
-                return
-            end)
-            u.insert(stuff, {btn, box})
-        end
-
-        do -- fling
-            local plr
-            local speed = 100
-            local flinging = false
-            local btn
-            btn = m.btn("Fling", function()
-                flinging = not flinging
-                btn.Text = flinging and "Unfling" or "Fling"
-                if not flinging or not g.char or not plr then
-                    return
-                end
-                local origin = g.root.CFrame
-                local connect
-                connect = g.run.Heartbeat:Connect(function()
-                    local root = g.root
-                    if not flinging then
-                        connect:Disconnect()
-                        root:PivotTo(origin)
-                        root.Anchored = true
-                        while root.AssemblyAngularVelocity ~= Vector3.zero or root.AssemblyLinearVelocity ~= Vector3.zero do
-                            root.AssemblyLinearVelocity = Vector3.zero
-                            root.AssemblyAngularVelocity = Vector3.zero
-                            task.wait()
-                        end
-                        root.Anchored = false
-                        return
+        u.insert( -- tp
+            stuff,
+            m.env.new(false, nil)
+            :btn(
+                "Tp",
+                function(vars)
+                    local plr = vars[1]
+                    local err = plrCheckAgain(plr)
+                    if err then
+                        return err
                     end
                     local char = plr.Character
                     if not char then
+                        return `{plr.Name} has no character`
+                    end
+                    g.tp(char)
+                    return
+                end
+            )
+            :box(
+                "Player",
+                plrNames,
+                plrCheck
+            )
+            .stuff
+        )
+
+        do -- continuous tp
+            local cn
+            local last
+            u.insert(
+                stuff,
+                m.env.new(false, nil)
+                :toggle(
+                    "Tp continuous",
+                    "Stop tp continuous",
+                    function(vars)
+                        local err = plrCheckAgain(vars[2])
+                        if err then
+                            return err
+                        end
+                        last = g.char:GetPivot()
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            local plr = vars[2]
+                            local char = plr.Character
+                            if not char then
+                                return
+                            end
+                            g.tp(plr.Character)
+                        end))
                         return
+                    end,
+                    function()
+                        j.cleanUpSingle(cn)
+                        g.tp(last)
+                        g.stay()
                     end
-                    local vec = g.rng:NextUnitVector() * speed
-                    local part = char.PrimaryPart or char:FindFirstChildWhichIsA("BasePart", true)
-                    local piv = char:GetPivot()
-                    if part then
-                        piv += part.AssemblyLinearVelocity * g.ping
-                    end
-                    g.char:PivotTo(piv)
-                    root.AssemblyAngularVelocity = vec
-                    root.AssemblyLinearVelocity = vec
-                end)
-            end)
-            local plrBox = m.box("Player", plrNames, function(name)
-                local err = plrCheck(name)
-                if err then
-                    return err
-                end
-                plr = getPlayer(name)
-                return
-            end)
-            local speedBox = m.box("Speed", plrNames, function(num)
-                local err = positiveCheck(num)
-                if err then
-                    return err
-                end
-                speed = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, plrBox, speedBox})
+                )
+                :box(
+                    "Player",
+                    plrNames,
+                    plrCheck
+                )
+                .stuff
+            )
         end
 
-        do -- wallheck
+        do -- fling
+            u.insert(
+                stuff,
+                m.env.new(false, 100)
+                :toggle(
+                    "Fling",
+                    "Unfling",
+                    function(vars)
+                        while vars[1] do
+                            g.run.Heartbeat:Wait()
+                            local root = g.root
+                            local vel = root.AssemblyLinearVelocity
+                            root.AssemblyLinearVelocity = (vel + g.rng:NextUnitVector()) * vars[2]
+                            g.run.RenderStepped:Wait()
+                            root.AssemblyLinearVelocity = vel
+                        end
+                    end
+                )
+                :box(
+                    "Speed",
+                    speeds,
+                    positiveCheck
+                )
+                .stuff
+            )
+        end
+
+        do -- wallheck players
             local high = h.new()
-            local wallhecking = false
-            local actual = nil
-            local btn
+            local vars
             local cns = {}
             local chars = {}
             local function add(plr, char)
@@ -1837,12 +1941,12 @@ do
                 high:addHighlight(char, {
                     tag = tag,
                     col = u.nameColour(tag),
-                    off = actual
+                    off = vars[2]
                 })
             end
             local function upd()
                 high:unhighlight()
-                if not wallhecking then
+                if not vars[1] then
                     return
                 end
                 for plr, char in chars do
@@ -1855,16 +1959,42 @@ do
                 end
                 cns[plr] = j.add(plr.CharacterAdded:Connect(function(char)
                     chars[plr] = char
-                    if wallhecking then
+                    if vars[1] then
                         add(plr, char)
                     end
                 end))
                 local char = plr.Character
                 chars[plr] = char
-                if wallhecking and char then
+                if vars[1] and char then
                     add(plr, char)
                 end
             end
+            local env = m.env.new(false)
+                :toggle(
+                    "Wallheck players",
+                    "Unwallheck players",
+                    upd,
+                    upd
+                )
+                :box(
+                    "Guess actual position",
+                    yesNo,
+                    function(str)
+                        local yes, err = yesNoCheck(str)
+                        if err then
+                            return nil, err
+                        end
+                        local actual =
+                            if yes
+                            then false
+                            else nil
+                        for _, data in high.boxes do
+                            data.off = actual
+                        end
+                        return actual
+                    end
+                )
+            vars = env.vars
             for _, plr in plrNamesToPlr do
                 addPlr(plr)
             end
@@ -1876,37 +2006,22 @@ do
                 cns[plr] = nil
                 chars[plr] = nil
             end)
-            btn = m.btn("Wallheck", function()
-                wallhecking = not wallhecking
-                btn.Text = wallhecking and "Unwallheck" or "Wallheck"
-                upd()
-            end)
-            local box = m.box("Guess Server Position", yesNo, function(str)
-                local err = yesNoCheck(str)
-                if err then
-                    return err
-                end
-                actual = yesNoBool(str) or nil
-                for _, data in high.boxes do
-                    data.off = actual
-                end
-                return
-            end)
-            u.insert(stuff, {btn, box})
+            u.insert(
+                stuff,
+                env.stuff
+            )
         end
 
         do -- wallheck npcs
             local high = h.new()
-            local wallhecking = false
-            local actual = nil
-            local btn
+            local vars
             local chars = {}
             local function add(char)
                 local tag = char.Name
                 high:addHighlight(char, {
                     tag = tag,
                     col = u.nameColour(tag),
-                    off = actual
+                    off = vars[2]
                 })
             end
             local function addHum(hum)
@@ -1914,19 +2029,45 @@ do
                 local char = hum.Parent
                 if char == workspace or g.plrs:GetPlayerFromCharacter(char) then return end
                 chars[char] = true
-                if wallhecking then
+                if vars[1] then
                     add(char)
                 end
             end
             local function upd()
                 high:unhighlight()
-                if not wallhecking then
+                if not vars[1] then
                     return
                 end
                 for char in chars do
                     add(char)
                 end
             end
+            local env = m.env.new(false)
+                :toggle(
+                    "Wallheck NPCs",
+                    "Unwallheck NPCs",
+                    upd,
+                    upd
+                )
+                :box(
+                    "Guess actual position",
+                    yesNo,
+                    function(str)
+                        local yes, err = yesNoCheck(str)
+                        if err then
+                            return nil, err
+                        end
+                        local actual =
+                            if yes
+                            then false
+                            else nil
+                        for _, data in high.boxes do
+                            data.off = actual
+                        end
+                        return actual
+                    end
+                )
+            vars = env.vars
             j.add(workspace.DescendantAdded:Connect(addHum))
             for _, desc in workspace:GetDescendants() do
                 addHum(desc)
@@ -1935,23 +2076,10 @@ do
                 chars[desc] = nil
                 high:removeHighlightNice(desc)
             end))
-            btn = m.btn("Wallheck NPCs", function()
-                wallhecking = not wallhecking
-                btn.Text = wallhecking and "Unwallheck NPCs" or "Wallheck NPCs"
-                upd()
-            end)
-            local box = m.box("Guess Server Position", yesNo, function(str)
-                local err = yesNoCheck(str)
-                if err then
-                    return err
-                end
-                actual = yesNoBool(str) or nil
-                for _, data in high.boxes do
-                    data.off = actual
-                end
-                return
-            end)
-            u.insert(stuff, {btn, box})
+            u.insert(
+                stuff,
+                env.stuff
+            )
         end
 
         m.addSection(Config.Images.PlayersIcon, stuff)
@@ -2005,34 +2133,36 @@ do
         end))
 
         do -- baseplate
-            local cn = nil
-            local btn
-            btn = m.btn("Baseplate", function()
-                if cn then
-                    base.Parent = nil
-                    j.add(cn)
-                    cn = nil
-                    btn.Text = "Baseplate"
-                else
-                    base.Parent = workspace
-                    local cf, size = g.char:GetBoundingBox()
-                    local y = cf.Y - size.Y / 2 - 0.5
-                    cn = j.add(g.run.RenderStepped:Connect(function()
-                        local pos = g.root.Position
-                        base.Position = Vector3.new(
-                            pos.X,
-                            y,
-                            pos.Z
-                        )
-                    end))
-                    btn.Text = "Destroy Baseplate"
-                end
-            end)
-            u.insert(stuff, {btn})
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false)
+                :toggle(
+                    "Add baseplate",
+                    "Remove baseplate",
+                    function()
+                        base.Parent = workspace
+                        local cf, size = g.char:GetBoundingBox()
+                        local y = cf.Y - size.Y / 2 - 0.5
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            local pos = g.root.Position
+                            base.Position = Vector3.new(
+                                pos.X,
+                                y,
+                                pos.Z
+                            )
+                        end))
+                    end,
+                    function()
+                        base.Parent = nil
+                        j.cleanUpSingle(cn)
+                    end
+                )
+                .stuff
+            )
         end
 
-        do-- grapple
-            local grapple = false
+        do -- grappler
             local rope = o.make("RopeConstraint", {
                 WinchEnabled = true,
                 WinchForce = math.huge,
@@ -2042,9 +2172,10 @@ do
                 WinchSpeed = 100,
                 Restitution = 1,
             })
+            local env = m.env.new(false)
             addMouseCast(
                 function(cast)
-                    if not grapple then return end
+                    if not env.vars[1] then return end
                     rope.Parent = workspace
                     rope.Attachment0 = g.att
                     rope.Length = (cast.Position - g.root.Position).Magnitude
@@ -2060,30 +2191,28 @@ do
                     rope.Parent = nil
                 end
             )
-            local btn
-            btn = m.btn("Grapple", function()
-                grapple = not grapple
-                btn.Text = grapple and "Ungrapple" or "Grapple"
-            end)
-            local box = m.box("Winch speed", {"2", "5", "10", "100"}, function(num)
-                local err = positiveCheck(num)
-                if err then
-                    return err
-                end
-                rope.WinchSpeed = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+            env
+                :toggle(
+                    "Grapple",
+                    "Ungrapple"
+                )
+                :box(
+                    "Winch speed",
+                    speeds,
+                    function(num)
+                        local err = positiveCheck(num)
+                        if err then
+                            return err
+                        end
+                        rope.WinchSpeed = tonumber(num)
+                        return
+                    end
+                )
+            u.insert(
+                stuff,
+                env.stuff
+            )
         end
-
-        -- do -- moverer
-        --     local handle = o.make("Handles", {
-        --         Parent = g.ui,
-        --         Color3 = Color3.fromRGB(0, 103, 172),
-        --         Style = Enum.HandlesStyle.Movement,
-        --     })
-        --     -- local select = o.make("SelectionBox")
-        -- end
 
         m.addSection(Config.Images.ObjectsIcon, stuff)
     end
@@ -2091,122 +2220,111 @@ do
     do -- Lighting
         local stuff = {}
 
-        do -- shadows
-            local set = true
-            local btn
-            btn = m.btn("Remove Shadows", function()
-                set = not set
-                btn.Text = set and "Remove Shadows" or "Add Shadows"
-                if set then
-                    return
+        u.insert( -- remove shadows
+            stuff,
+            m.env.new(false)
+            :toggle(
+                "Remove shadows",
+                "Add shadows",
+                function(vars)
+                    local cn
+                    cn = j.add(g.run.RenderStepped:Connect(function()
+                        local set = not vars[1]
+                        g.light.GlobalShadows = set
+                        if set then
+                            j.cleanUpSingle(cn)
+                        end
+                    end))
                 end
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.light.GlobalShadows = set
-                    if set then
-                        cn:Disconnect()
-                    end
-                end)
-            end)
-            u.insert(stuff, {btn})
-        end
+            )
+            .stuff
+        )
 
-        do -- effects
-            local set = true
+        do -- remove effects
             local effects = {}
-            local btn
-            btn = m.btn("Remove Effects", function()
-                set = not set
-                btn.Text = set and "Remove Effects" or "Add Effects"
-                if set then
-                    return
-                end
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    for _, thing in g.light:GetChildren() do
-                        effects[thing] = true
-                        thing.Parent = nil
-                    end
-                    if set then
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false)
+                :toggle(
+                    "Remove effects",
+                    "Add effects",
+                    function()
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            for _, thing in g.light:GetChildren() do
+                                effects[thing] = true
+                                thing.Parent = nil
+                            end
+                        end))
+                    end,
+                    function()
+                        j.cleanUpSingle(cn)
                         for thing in effects do
                             effects[thing] = nil
                             thing.Parent = g.light
                         end
-                        cn:Disconnect()
                     end
-                end)
-            end)
-            u.insert(stuff, {btn})
+                )
+                .stuff
+            )
         end
 
-        do -- set brightness
-            local set = false
+        do -- set clocktime
             local timy = 0
-            local newTimmy = 0
-            local btn
-            btn = m.btn("Set Clock", function()
-                if not g.hum then
-                    return
-                end
-                set = not set
-                btn.Text = set and "Unset Clock" or "Set Clock"
-                if not set then
-                    return
-                end
-                timy = g.light.ClockTime
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.light.ClockTime = newTimmy
-                    if not set then
-                        cn:Disconnect()
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false, 5)
+                :toggle(
+                    "Set clock",
+                    "Unset clock",
+                    function(vars)
+                        timy = g.light.ClockTime
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            g.light.ClockTime = vars[2]
+                        end))
+                    end,
+                    function()
+                        j.cleanUpSingle(cn)
                         g.light.ClockTime = timy
                     end
-                end)
-            end)
-            local box = m.box("Time", {"6", "10", "14", "24"}, function(num)
-                local err = numberRangeCheck(num, 0, 24)
-                if err then
-                    return err
-                end
-                newTimmy = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+                )
+                :box(
+                    "Time",
+                    {"6", "12", "18", "24"},
+                    numberRangeCheck(0, 24)
+                )
+                .stuff
+            )
         end
 
         do -- set brightness
-            local set = false
             local bright = 0
-            local newBright = 0
-            local btn
-            btn = m.btn("Set Brightness", function()
-                if not g.hum then
-                    return
-                end
-                set = not set
-                btn.Text = set and "Unset Brightness" or "Set Brightness"
-                if not set then
-                    return
-                end
-                bright = g.light.Brightness
-                local cn
-                cn = g.run.RenderStepped:Connect(function()
-                    g.light.Brightness = newBright
-                    if not set then
-                        cn:Disconnect()
+            local cn
+            u.insert(
+                stuff,
+                m.env.new(false, 5)
+                :toggle(
+                    "Set brightness",
+                    "Unset brightness",
+                    function(vars)
+                        bright = g.light.Brightness
+                        cn = j.add(g.run.RenderStepped:Connect(function()
+                            g.light.Brightness = vars[2]
+                        end))
+                    end,
+                    function()
+                        j.cleanUpSingle(cn)
                         g.light.Brightness = bright
                     end
-                end)
-            end)
-            local box = m.box("Luminosity", {"0", "5", "10"}, function(num)
-                local err = numberRangeCheck(num, 0, 10)
-                if err then
-                    return err
-                end
-                newBright = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {btn, box})
+                )
+                :box(
+                    "Time",
+                    {"0", "2.5", "5", "7.5", "10"},
+                    numberRangeCheck(0, 10)
+                )
+                .stuff
+            )
         end
 
         m.addSection(Config.Images.LightingIcon, stuff)
@@ -2214,7 +2332,8 @@ do
 
     do -- Misc
         local stuff = {}
-        u.insert(stuff, {m.btn("Sticky note", function()
+
+        u.insert(stuff, {m.btn("Sticky note", function() -- sticky note
             m.stickyNote()
         end)})
 
@@ -2224,24 +2343,21 @@ do
         })
 
         do -- aim trainer
-            local size = 25
-            local time = 2
-            local amount = 10
-            
             local win = w.newEzier(.5, .5, 0.5, "Aim trainer")
             local txt = o.txt(win.content, nil, u.pos1)
             local btn = o.txt(win.content, nil, nil, "X", 0, true, "Secondary")
+            local vars
             o.strocorn(btn)
             local notif = n.normal(3)
-            local startBtn = m.btn("Aim trainer", function()
+            local function start()
                 win:toggle()
                 if not win.enabled then return end
                 btn.Visible = false
-                local sSize = size / 100
-                local maxPos = 1 - sSize
-                btn.Size = u.pos(sSize, sSize)
-                local sTime = time
-                local sAmount = amount
+                local size = vars[2] / 100
+                local maxPos = 1 - size
+                btn.Size = u.pos(size, size)
+                local time = vars[3]
+                local amount = vars[4]
                 local amountPassed = 0
                 local amountGotten = 0
                 local startup
@@ -2264,7 +2380,7 @@ do
                 coroutine.yield()
                 txt.Text = ""
                 btn.Visible = true
-                for _ = 1, sAmount do
+                for _ = 1, amount do
                     btn.Position = u.pos(
                         g.rng:NextNumber(0, maxPos),
                         g.rng:NextNumber(0, maxPos)
@@ -2277,7 +2393,7 @@ do
                     end)
                     local start = tick()
                     delay = j.add(g.run.RenderStepped:Connect(function()
-                        if tick() - start < sTime and win.enabled then return end
+                        if tick() - start < time and win.enabled then return end
                         cn:Disconnect()
                         delay:Disconnect()
                         task.spawn(thread)
@@ -2288,32 +2404,36 @@ do
                 end
                 notif(`You got {amountGotten}/{amountPassed} targets`, {"Ok"})
                 win:disable()
-            end)
-            local sizeBox = m.box("Size", {"1", "50", "100"}, function(num)
-                local err = numberRangeCheck(num, 1, 100)
-                if err then
-                    return err
-                end
-                size = tonumber(num)
-                return
-            end)
-            local timeBox = m.box("Time", {"0.5", "1", "2", "3"}, function(num)
-                local err = numberRangeCheck(num, 0.1, 5)
-                if err then
-                    return err
-                end
-                time = tonumber(num)
-                return
-            end)
-            local amountBox = m.box("Amount", {"5", "20", "100"}, function(num)
-                local err = integerRangeCheck(num, 1, 100)
-                if err then
-                    return err
-                end
-                amount = tonumber(num)
-                return
-            end)
-            u.insert(stuff, {startBtn, sizeBox, timeBox, amountBox})
+            end
+
+            local env = m.env.new(false, 25, 2, 10)
+                :toggle(
+                    "Aim trainer",
+                    "Aim trainer",
+                    start,
+                    start
+                )
+                :box(
+                    "Size",
+                    {"1", "25", "50", "75", "100"},
+                    numberRangeCheck(1, 100)
+                )
+                :box(
+                    "Time",
+                    {"0.5", "1", "2", "3"},
+                    numberRangeCheck(0.1, 5)
+                )
+                :box(
+                    "Amount",
+                    {"5", "20", "100"},
+                    integerRangeCheck(1, 100)
+                )
+            vars = env.vars
+
+            u.insert(
+                stuff,
+                env.stuff
+            )
         end
 
         m.addSection(Config.Images.MiscIcon, stuff)

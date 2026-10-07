@@ -506,6 +506,17 @@ g.ui = j.add(o.make("ScreenGui", {
 
 g.pad = o.padding(g.ui)
 
+g.rng = Random.new()
+
+g.ping = 0
+g.pingRound = 0
+j.add(task.spawn(function()
+    while task.wait(Config.General.PingUpdateTime) do
+        g.pingRound = g.plr:GetNetworkPing()
+        g.ping = g.pingRound / 2
+    end
+end))
+
 do
     local function onCharAdded(newChar: Model)
         g.char = newChar
@@ -581,16 +592,26 @@ function g.stay()
     root.Anchored = false
 end
 
-g.rng = Random.new()
-
-g.ping = 0
-g.pingRound = 0
-j.add(task.spawn(function()
-    while task.wait(Config.General.PingUpdateTime) do
-        g.pingRound = g.plr:GetNetworkPing()
-        g.ping = g.pingRound / 2
+function g.getPrimaryPart(model: Model): BasePart?
+    local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+    if part then
+        return part.AssemblyRootPart
     end
-end))
+    return
+end
+
+function g.getVelocity(v0: Model | BasePart): Vector3
+    local part
+    if v0:IsA("Model") then
+        part = g.getPrimaryPart(v0)
+        if not part then
+            return Vector3.zero
+        end
+    else
+        part = v0
+    end
+    return part.AssemblyLinearVelocity
+end
 
 g.camUpd(Config.Sizing.CornerRadius, function(num)
     local rad = UDim.new(0, num)
@@ -763,7 +784,29 @@ end
 w.__index = w
 w.windows = {}
 w.topbarSize = 0
+w.modals = {}
 type btnCallback = (InputObject, number) -> ()
+
+do
+    local img
+    local vis
+    j.add(g.run.RenderStepped:Connect(function()
+        for _ in w.modals do
+            if not img then
+                img = g.uis.MouseIcon
+                vis = g.uis.MouseIconEnabled
+            end
+            g.uis.MouseIcon = ""
+            g.uis.MouseIconEnabled = true
+            return
+        end
+        if img then
+            g.uis.MouseIcon = img
+            g.uis.MouseIconEnabled = vis
+        end
+        img = nil
+    end))
+end
 
 function w.new(
     sizeX: number,
@@ -964,6 +1007,7 @@ function w:enable(enabled: boolean?)
     local ui = self.ui
     self.enabled = e
     ui.Visible = e
+    w.modals[self] = enabled or nil
     if e then
         self:sendToLayer()
     end
@@ -1146,10 +1190,7 @@ function h:updCn()
                 end
                 local cf, size = model:GetBoundingBox()
                 if data.off ~= nil then
-                    local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
-                    if part then
-                        cf += part.AssemblyLinearVelocity * u.unaryWithBool(ping, data.off)
-                    end
+                    cf += g.getVelocity(model) * u.unaryWithBool(ping, data.off)
                 end
                 data.part.CFrame = cf
                 data.tag.StudsOffsetWorldSpace = Vector3.yAxis * size.Y / 2
@@ -1490,6 +1531,28 @@ do
         return
     end
 
+    local closestPlr
+    local closestChar
+    local closestPlrPos
+    local closestPlrDir
+    j.add(g.run.PreSimulation:Connect(function()
+        local closestMag
+        local gpos = g.char:GetPivot().Position
+        for _, plr in plrNamesToPlr do
+            local char = plr.Character
+            if not char then continue end
+            local pos = char:GetPivot().Position
+            local dir = pos - gpos
+            local mag = dir.Magnitude
+            if closestMag and closestMag < mag then continue end
+            closestPlr = plr
+            closestChar = char
+            closestPlrPos = pos
+            closestPlrDir = dir
+            closestMag = mag
+        end
+    end))
+
     local function numberCheck(num: string)
         local to = tonumber(num)
         if not to then
@@ -1702,7 +1765,7 @@ do
                 "Unnoclip",
                 function(vars)
                     local cn
-                    cn = j.add(g.run.Heartbeat:Connect(function()
+                    cn = j.add(g.run.PreSimulation:Connect(function()
                         local noclipping = vars[1]
                         for _, part in g.char:GetDescendants() do
                             if not part:IsA("BasePart") then
@@ -1837,6 +1900,38 @@ do
     do -- Players
         local stuff = {}
 
+        do -- fling
+            u.insert(
+                stuff,
+                m.env.new(false, 100)
+                :toggle(
+                    "Fling",
+                    "Unfling",
+                    function(vars)
+                        while vars[1] do
+                            g.run.Heartbeat:Wait()
+                            local root = g.root
+                            local vel = root.AssemblyLinearVelocity
+                            root.AssemblyLinearVelocity = (
+                                vel +
+                                if closestPlrDir
+                                then closestPlrDir.Unit
+                                else g.rng:NextUnitVector()
+                            ) * vars[2]
+                            g.run.RenderStepped:Wait()
+                            root.AssemblyLinearVelocity = vel
+                        end
+                    end
+                )
+                :box(
+                    "Speed",
+                    speeds,
+                    positiveCheck
+                )
+                .stuff
+            )
+        end
+
         u.insert( -- tp
             stuff,
             m.env.new(false, nil)
@@ -1899,33 +1994,6 @@ do
                     "Player",
                     plrNames,
                     plrCheck
-                )
-                .stuff
-            )
-        end
-
-        do -- fling
-            u.insert(
-                stuff,
-                m.env.new(false, 100)
-                :toggle(
-                    "Fling",
-                    "Unfling",
-                    function(vars)
-                        while vars[1] do
-                            g.run.Heartbeat:Wait()
-                            local root = g.root
-                            local vel = root.AssemblyLinearVelocity
-                            root.AssemblyLinearVelocity = (vel + g.rng:NextUnitVector()) * vars[2]
-                            g.run.RenderStepped:Wait()
-                            root.AssemblyLinearVelocity = vel
-                        end
-                    end
-                )
-                :box(
-                    "Speed",
-                    speeds,
-                    positiveCheck
                 )
                 .stuff
             )
@@ -2095,7 +2163,7 @@ do
                 1,
                 2048
             ),
-            0.5,
+            3,
             true,
             true
         )
@@ -2143,8 +2211,8 @@ do
                     function()
                         base.Parent = workspace
                         local cf, size = g.char:GetBoundingBox()
-                        local y = cf.Y - size.Y / 2 - 0.5
-                        cn = j.add(g.run.RenderStepped:Connect(function()
+                        local y = cf.Y - (size.Y + base.Size.Y) / 2
+                        cn = j.add(g.run.PreSimulation:Connect(function()
                             local pos = g.root.Position
                             base.Position = Vector3.new(
                                 pos.X,
@@ -2490,7 +2558,7 @@ n.send(Config.Images.ExpressionlessEgg, "Eggsploits initialised", {"Ok"})
 task.wait(1)
 
 if v.currentVersionReadSuccess and v.lastVersionReadSuccess and v.currentVersion ~= v.lastVersion then
-    n.send(nil, `Updated to {v.currentVersion}`, {"Changelogs"}, function(idx)
+    n.send(Config.Images.ExpressionlessEgg, `Updated to {v.currentVersion}`, {"Changelogs"}, function(idx)
         if idx ~= 1 then return end
         v.openChangelogs()
     end)

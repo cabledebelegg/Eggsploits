@@ -1,8 +1,23 @@
+V0.1.2 - 7/10/26
+fling:
+- no longer random
+- flings directly at people
+
+ui:
+- mouse unlocks when windows are open
+- rearranged players tab
+- made update notif have an egg on it
+
 V0.1.1 - 4/10/26
 another backend update:
 - every function is easier to make now
 - stuff is just generally better
 - buncha boring stuff
+
+flinging:
+- now flings in place
+- walk up to people to fling them
+- added tp continuous to keep old functionality
 
 V0.1.0 - 2/10/26
 big backend update:

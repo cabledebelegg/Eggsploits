@@ -2,12 +2,54 @@ local Config = {
     General = {
         Open = Enum.KeyCode.Minus,
         PingUpdateTime = 3,
+        DisplayOrder = 999999999,
         InitTable = getgenv and getgenv() or _G,
         InitKey = "EggsploitsInitialised",
         RestartWhenAlreadyInitialised = true,
         CurrentVersionUrl = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/CurrentVersion.log",
         VersionHistoryUrl = "https://raw.githubusercontent.com/cabledebelegg/Eggsploits/refs/heads/main/VersionHistory.log",
         LastVersionPath = "LastEggsploitsVersion.log",
+        Random = Random.new(),
+        NameLength = 10,
+        UpdateNotificationWait = 0.5,
+    },
+    Loading = {
+        ImageColourTop = Color3.fromRGB(75, 75, 75),
+        ImageColourBottom = Color3.fromRGB(255, 255, 255),
+        PercentExponent = 5,
+        PercentFeedBackSpeed = 0.5,
+        TextColour = Color3.fromRGB(255, 204, 19),
+        TextShimmerColour = Color3.fromRGB(255, 255, 255),
+        ShimmerSize = 0.2,
+        ShimmerExponent = 5/8,
+        ShimmerDebounceTime = 1,
+        ShimmerSpeed = 0.5,
+        StartAnimation = TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Quart,
+            Enum.EasingDirection.Out
+        ),
+        EndAnimation = TweenInfo.new(
+            0.5,
+            Enum.EasingStyle.Quart,
+            Enum.EasingDirection.Out,
+            0,
+            false,
+            0.5
+        ),
+        AfterWait = 0.5
+    },
+    Window = {
+        FadeAnimation = TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Circular,
+            Enum.EasingDirection.Out
+        ),
+        MaximiseAnimation = TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Exponential,
+            Enum.EasingDirection.Out
+        )
     },
     Highlight = {
         Transparency = 1/4,
@@ -40,15 +82,28 @@ local Config = {
         SuggestionButton = 1/20,
         SuggestionListPadding = 1/60,
         WindowResizeThickness = 5,
-        ChangelogText = 40/580
+        ChangelogText = 40/580,
+        TopbarInsetWhenMaximised = 225,
     },
     GenericProperties = {
+        Gui = {
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            IgnoreGuiInset = true,
+            ResetOnSpawn = false,
+        },
         Text = {
             TextScaled = true,
             FontFace = Font.fromEnum(Enum.Font.FredokaOne),
             BackgroundTransparency = 1,
             TextColor3 = Color3.fromRGB(0, 0, 0),
             BorderSizePixel = 0,
+            Active = true,
+            InputSink = Enum.InputSink.All,
+        },
+        Image = {
+            ScaleType = Enum.ScaleType.Fit,
+            Active = true,
+            InputSink = Enum.InputSink.All,
         },
         TextBox = {
             TextScaled = true,
@@ -61,10 +116,14 @@ local Config = {
         Primary = {
             BackgroundColor3 = Color3.fromRGB(255, 204, 19),
             BorderSizePixel = 0,
+            Active = true,
+            InputSink = Enum.InputSink.All,
         },
         Secondary = {
             BackgroundColor3 = Color3.fromRGB(232, 185, 17),
             BorderSizePixel = 0,
+            Active = true,
+            InputSink = Enum.InputSink.All,
         },
         Stroke = {
             ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -73,7 +132,9 @@ local Config = {
             BorderSizePixel = 0,
             ScrollBarImageColor3 = Color3.new(),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            CanvasSize = UDim2.fromScale(0,0)
+            CanvasSize = UDim2.fromScale(0,0),
+            Active = true,
+            InputSink = Enum.InputSink.All,
         }
     },
     Images = {
@@ -86,6 +147,7 @@ local Config = {
         ObjectsIcon = 12988752403,
         LightingIcon = 74888619733969,
         MiscIcon = 9405921255,
+        MaximiseButton = 117275190545393,
     }
 }
 
@@ -100,7 +162,8 @@ if Config.General.InitTable[Config.General.InitKey] then
     end
 end
 
----- utils, janitor, object, global, notification, window, version, suggestions, highlight, main, button ----
+---- services, utils, janitor, object, global, notification, window, version, autofill, highlight, main, button ----
+local s = {}
 local u = {}
 local j = {}
 local o = {}
@@ -108,10 +171,21 @@ local g = {}
 local v = {}
 local n = {}
 local w = {}
-local s = {}
+local a = {}
 local h = {}
 local m = {}
 local b = {}
+
+---- services
+
+setmetatable(s, {
+    __index = function(self, name)
+        local service = game:GetService(name)
+        local ref = cloneref and cloneref(service) or service
+        self[name] = ref
+        return ref
+    end
+})
 
 ---- utils ----
 
@@ -187,7 +261,7 @@ function u.filter(tb: {string}, str: string): {string}
     return out
 end
 
-function u.rmNan(num: number): number
+function u.removeNan(num: number): number
     if math.isnan(num) then
         return 0
     end
@@ -227,7 +301,7 @@ end
 function u.pcall(fn: (...any) -> (...any), ...: any): (boolean, ...any)
     local tb = {pcall(fn, ...)}
     if not tb[1] then
-        tb[2] = "Error"..tb[2]
+        tb[2] = `Error: {tb[2]}`
     end
     return unpack(tb)
 end
@@ -244,6 +318,19 @@ end
 
 function u.writeFile(path: string, data: string): boolean
     return u.pcall(writeFile or writefile, path, data)
+end
+
+function u.randomString(len: number): string
+    local str = ""
+    for i = 1, len do
+        str ..= string.char(
+            Config.General.Random:NextInteger(
+                0,
+                255
+            )
+        )
+    end
+    return str
 end
 
 ---- janitor ----
@@ -317,8 +404,16 @@ function o.mould(inst: Instance, props: {[string]: any}?, ...: string)
     end
 end
 
+function o.addName(props: {[string]: any}?)
+    if not props or props.Name then
+        return
+    end
+    props.Name = u.randomString(Config.General.NameLength)
+end
+
 function o.make(class: string, props: {[string]: any}?, ...: string)
     local inst = Instance.new(class)
+    o.addName(props)
     o.mould(
         inst,
         props,
@@ -327,37 +422,32 @@ function o.make(class: string, props: {[string]: any}?, ...: string)
     return inst
 end
 
-function o.clone(inst: Instance, props: {[string]: any}, ...: string)
-    o.mould(
-        inst:Clone(),
-        props,
-        ...
-    )
-end
-
 o.stros = {}
 o.stroThickness = 0
 
 function o.stro(parent: Instance?)
-    u.insert(o.stros, o.make("UIStroke", {
+    local stro = o.make("UIStroke", {
         Parent = parent,
         Thickness = o.stroThickness,
-    }, "Stroke"))
+    }, "Stroke")
+    u.insert(o.stros, stro)
+    return stro
 end
 
 o.corns = {}
 o.cornRadius = UDim.new()
 
 function o.corn(parent: Instance?)
-    u.insert(o.corns, o.make("UICorner", {
+    local corn = o.make("UICorner", {
         Parent = parent,
         CornerRadius = o.cornRadius
-    }))
+    })
+    u.insert(o.corns, corn)
+    return corn
 end
 
-function o.strocorn(parent: Instance?)
-    o.stro(parent)
-    o.corn(parent)
+function o.strocorn(parent: Instance?): (UIStroke, UICorner)
+    return o.stro(parent), o.corn(parent)
 end
 
 function o.thingy(class: string, parent: Instance?, pos: UDim2?, size: UDim2?, bgTransparency: number?, ...: string): GuiObject
@@ -370,14 +460,13 @@ function o.thingy(class: string, parent: Instance?, pos: UDim2?, size: UDim2?, b
 end
 
 function o.img(parent: Instance?, pos: UDim2?, size: UDim2?, id: number?, bgTransparency: number?, btn: boolean?, ...: string): any
-    local img = o.thingy(`Image{u.buttonOrLabel(btn)}`, parent, pos, size, bgTransparency, ...)
+    local img = o.thingy(`Image{u.buttonOrLabel(btn)}`, parent, pos, size, bgTransparency, "Image", ...)
     img.Image = u.asset(id)
-    img.ScaleType = Enum.ScaleType.Fit
     return img
 end
 
 function o.txt(parent: Instance?, pos: UDim2?, size: UDim2?, txt: string?, bgTransparency: number?, btn: boolean?, ...: string): any
-    local kllgvj = o.thingy(`Text{u.buttonOrLabel(btn)}`, parent, pos, size, bgTransparency, "Text", ...)
+    local kllgvj = o.thingy(`Text{u.buttonOrLabel(btn)}`, parent, pos, size, bgTransparency, "Text", ...);
     kllgvj.Text = txt or ""
     return kllgvj
 end
@@ -405,8 +494,8 @@ function o.dragDetect(parent: Instance?): UIDragDetector
     })
 end
 
-function o.flex(parent: Instance?, mode: Enum.UIFlexMode?)
-    o.make("UIFlexItem", {
+function o.flex(parent: Instance?, mode: Enum.UIFlexMode?): UIFlexItem
+    return o.make("UIFlexItem", {
         Parent = parent,
         FlexMode = mode or Enum.UIFlexMode.Shrink
     })
@@ -473,40 +562,44 @@ function o.setPad(pad: UIPadding, udim: UDim)
     pad.PaddingBottom = udim
 end
 
+o.stroPads = {}
+
+function o.stroPad(parent: Instance): UIPadding
+    local pad = o.make("UIPadding", {
+        Parent = parent
+    })
+    o.setPad(pad, UDim.new(0, o.stroThickness))
+    u.insert(o.stroPads, pad)
+    return pad
+end
+
+function o.weak(tb: {}, k: boolean?, v: boolean?)
+    local kv = ""
+    if k ~= false then
+        kv ..= "k"
+    end
+    if v ~= false then
+        kv ..= "v"
+    end
+    setmetatable(tb, {
+        mode = kv
+    })
+end
+
+o.weak(o.stros)
+o.weak(o.corns)
+o.weak(o.stroPads)
+
 ---- global ----
 
-g.services = setmetatable({}, {
-	__index = function(self, name)
-local Lighting = game:GetService("Lighting")
-local RunService = game:GetService("RunService")
-        local service = game:GetService(name)
-		local ref = cloneref and cloneref(service) or service
-        rawset(self, name, ref)
-		return ref
-	end
-})
-
-g.run = g.services.RunService :: RunService
-g.twen = g.services.TweenService :: TweenService
-g.uis = g.services.UserInputService :: UserInputService
-g.light = g.services.Lighting :: Lighting
-g.txt = g.services.TextService :: TextService
-g.plrs = g.services.Players :: Players
-g.plr = g.plrs.LocalPlayer
-g.core = g.run:IsStudio() and g.plr:WaitForChild("PlayerGui") or g.services.CoreGui
+g.plr = s.Players.LocalPlayer
 g.mouse = g.plr:GetMouse()
+g.uiFolder = gethui and gethui() or s.CoreGui or g.plr:WaitForChild("PlayerGui")
 
 g.ui = j.add(o.make("ScreenGui", {
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    IgnoreGuiInset = true,
-    DisplayOrder = math.huge,
-    ResetOnSpawn = false,
-    Parent = g.core,
-}))
-
-g.pad = o.padding(g.ui)
-
-g.rng = Random.new()
+    DisplayOrder = Config.General.DisplayOrder,
+    Parent = g.uiFolder,
+}, "Gui"))
 
 g.ping = 0
 g.pingRound = 0
@@ -587,7 +680,7 @@ function g.stay()
     while root.AssemblyLinearVelocity ~= Vector3.zero or root.AssemblyAngularVelocity ~= Vector3.zero do
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
-        g.run.Stepped:Wait()
+        s.RunService.Stepped:Wait()
     end
     root.Anchored = false
 end
@@ -626,15 +719,23 @@ function g.remove()
     Config.General.InitTable[Config.General.InitKey] = nil
 end
 
+function g.sinker(thing: Instance, zIndex: number?): Instance -- before v711 of rbx
+    local gui = o.make("ScreenGui", {
+        DisplayOrder = zIndex,
+        Parent = g.ui
+    }, "Gui")
+    thing.Parent = gui
+    return gui
+end
+
 ---- notification ----
 
 n.frame = o.make("Frame", {
     BackgroundTransparency = 1,
     Position = u.pos(0.3, 0.03),
     Size = u.pos(0.4, 0.1),
-    Parent = g.ui,
-    ZIndex = 2
 })
+g.sinker(n.frame, Config.General.DisplayOrder)
 n.padding = 1.5
 n.notifs = {}
 n.normInfo = TweenInfo.new(
@@ -660,7 +761,7 @@ function n.upd()
         if ui.Position == pos then
             continue
         end
-        g.twen:Create(
+        s.TweenService:Create(
             ui,
             Config.Notification.Animation,
             {Position = pos}
@@ -726,7 +827,7 @@ function n.send(img: number?, txt: string?, options: {string}?, callback: notifC
             end)
         end
     end
-    local twen = g.twen:Create(
+    local twen = s.TweenService:Create(
         o.make("Frame", {
             Parent = ui,
             Position = u.pos(0, .93),
@@ -742,7 +843,7 @@ function n.send(img: number?, txt: string?, options: {string}?, callback: notifC
         n.call(ui, callback)
     end)
     table.insert(n.notifs, 1, ui)
-    g.run.RenderStepped:Once(n.upd)
+    s.RunService.RenderStepped:Once(n.upd)
 end
 
 function n.capSendImgStuffToo(img: number?, max: number?)
@@ -790,19 +891,19 @@ type btnCallback = (InputObject, number) -> ()
 do
     local img
     local vis
-    j.add(g.run.RenderStepped:Connect(function()
+    j.add(s.RunService.RenderStepped:Connect(function()
         for _ in w.modals do
             if not img then
-                img = g.uis.MouseIcon
-                vis = g.uis.MouseIconEnabled
+                img = s.UserInputService.MouseIcon
+                vis = s.UserInputService.MouseIconEnabled
             end
-            g.uis.MouseIcon = ""
-            g.uis.MouseIconEnabled = true
+            s.UserInputService.MouseIcon = ""
+            s.UserInputService.MouseIconEnabled = true
             return
         end
         if img then
-            g.uis.MouseIcon = img
-            g.uis.MouseIconEnabled = vis
+            s.UserInputService.MouseIcon = img
+            s.UserInputService.MouseIconEnabled = vis
         end
         img = nil
     end))
@@ -816,7 +917,8 @@ function w.new(
     maxSizeX: number,
     maxSizeY: number, title: string?,
     noCloseButton: boolean?,
-    nonModal: boolean?
+    nonModal: boolean?,
+    maximiseButton: boolean?
 )
     local size = u.pos(sizeX, sizeY)
     local self = setmetatable({}, w)
@@ -829,13 +931,22 @@ function w.new(
     self.maxSizeX = maxSizeX
     self.maxSizeY = maxSizeY
     self.enabled = false
-    self.ui = o.make("Frame", {
-        Parent = g.ui,
+    self.ui = o.make("CanvasGroup", {
         Position = u.centre(.5,.5,size),
         Size = size,
         Visible = false,
     }, "Primary")
-    o.strocorn(self.ui)
+    o.stroPad(self.ui)
+    self.insideStro = o.make("Frame", {
+        Parent = self.ui,
+        Position = u.pos0,
+        Size = u.pos1,
+        BackgroundTransparency = 1
+    }, "Primary")
+    self.screen = g.sinker(self.ui)
+    self.stro = o.stro(self.insideStro)
+    o.corn(self.insideStro)
+    o.corn(self.ui)
     self.content = o.make("Frame", {
         Parent = self.ui,
         BackgroundTransparency = 1,
@@ -843,14 +954,35 @@ function w.new(
     self.topbar = o.make("Frame", {
         Parent = self.ui
     }, "Secondary")
+    self.topbarInsetPad = o.padding(self.topbar)
     o.paddingEzy(self.topbar, .01, .01)
-    o.list(self.topbar, true, nil, Enum.HorizontalAlignment.Right)
-    o.strocorn(self.topbar)
+    o.list(self.topbar, true, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Right)
+    self.stro, self.corn = o.strocorn(self.topbar)
     self.drag = o.dragDetect(self.topbar)
     self.title = o.txt(self.topbar, nil, u.pos1, title)
     self.title.TextXAlignment = Enum.TextXAlignment.Left
     self.title.LayoutOrder = -math.huge
     o.flex(self.title)
+    if not noCloseButton then
+        self:addTxtBtn(
+            "X",
+            function()
+                self:disable()
+            end
+        )
+    end
+    if not nonModal then
+        self.modaler = o.txt(self.ui, nil, nil, nil, 1, true)
+    end
+    self.maximised = false
+    if maximiseButton then
+        self:addImgBtn(
+            Config.Images.MaximiseButton,
+            function()
+                self:toggleMaximised()
+            end
+        )
+    end
     for x = -1, 1 do
         self.bars[x] = {}
         for y = -1, 1 do
@@ -865,7 +997,7 @@ function w.new(
                 local oSX = self.ui.Size.X.Scale
                 local oSY = self.ui.Size.Y.Scale
                 dragging = true
-                while dragging and self.enabled and g.run.RenderStepped:Wait() do
+                while dragging and self.enabled and not self.maximised and s.RunService.RenderStepped:Wait() do
                     local du = drag.DragUDim2
                     local posX, sizeX = w.resizeAmount(x, oX, oSX, du.X.Offset / g.cam.ViewportSize.X, self.minSizeX, self.maxSizeX)
                     local posY, sizeY = w.resizeAmount(y, oY, oSY, du.Y.Offset / g.cam.ViewportSize.Y, self.minSizeY, self.maxSizeY)
@@ -880,14 +1012,6 @@ function w.new(
             self.bars[x][y] = drag
         end
     end
-    if not noCloseButton then
-        self:addTxtBtn("X", function()
-            self:disable()
-        end)
-    end
-    if not nonModal then
-        self.modaler = o.txt(self.ui, nil, nil, nil, 1, true)
-    end
     u.insert(w.windows, self)
     local dragging = false
     self.drag.DragStart:Connect(function()
@@ -897,7 +1021,7 @@ function w.new(
         local y = self.ui.Position.Y.Scale
         local sx = 1 - self.ui.Size.X.Scale
         local sy = 1 - self.ui.Size.Y.Scale
-        while dragging and self.enabled and g.run.RenderStepped:Wait() do
+        while dragging and self.enabled and not self.maximised and s.RunService.RenderStepped:Wait() do
             local du = self.drag.DragUDim2
             self.ui.Position = u.pos(
                 math.clamp(x + du.X.Offset / g.cam.ViewportSize.X, 0, sx),
@@ -919,15 +1043,27 @@ function w.newEzier(
     maxSize: number,
     title: string?,
     noCloseButton: boolean?,
-    nonModal: boolean?
+    nonModal: boolean?,
+    maximiseButton: boolean?
 )
-    return w.new(size, size, minSize, minSize, maxSize, maxSize, title, noCloseButton, nonModal)
+    return w.new(
+        size,
+        size,
+        minSize,
+        minSize,
+        maxSize,
+        maxSize,
+        title,
+        noCloseButton,
+        nonModal,
+        maximiseButton
+    )
 end
 
 function w:addBtn(btn: GuiButton, callback: btnCallback)
     self.buttonAmount += 1
     btn.Parent = self.topbar
-    btn.Size = u.pos1
+    btn.Size = u.pos(0.8, 0.8)
     btn.SizeConstraint = Enum.SizeConstraint.RelativeYY
     btn.LayoutOrder = -self.buttonAmount
     self.topButtons[btn] = callback
@@ -944,14 +1080,24 @@ function w:addTxtBtn(txt: string, callback: btnCallback)
     )
 end
 
+function w:addImgBtn(img: number, callback: btnCallback)
+    self:addBtn(
+        o.make("ImageButton", {
+            BackgroundTransparency = 1,
+            Image = u.asset(img)
+        }, "Image"),
+        callback
+    )
+end
+
 function w:addContent(content: Instance)
     content.Parent = self.content
 end
 
-function w:updTopbarSize(n: number)
-    self.topbar.Size = u.posWithOffset(1, 0, 0, n)
-    self.content.Size = u.posWithOffset(1, 0, 1, -n)
-    self.content.Position = u.posWithOffset(0, 0, 0, n)
+function w:updTopbarSize(num: number)
+    self.topbar.Size = u.posWithOffset(1, 0, 0, num)
+    self.content.Size = u.posWithOffset(1, 0, 1, -num)
+    self.content.Position = u.posWithOffset(0, 0, 0, num)
 end
 
 function w:makeBar(x: number, y: number): UIDragDetector
@@ -988,27 +1134,82 @@ end
 function w:sendToLayer(layer: number?)
     local amount = #self.windows
     layer = layer or amount
-    if self.ui.ZIndex == layer then return end
+    if self.screen.DisplayOrder == layer then return end
     u.remove(w.windows, self)
     table.insert(w.windows, layer :: number, self)
     for z, win in w.windows do
-        win.ui.ZIndex = -(amount - z)
+        win.screen.DisplayOrder = z
     end
 end
 
+function w:maximise(maximised: boolean?)
+    local maxi = maximised ~= false
+    if self.maximised == maxi then
+        return
+    end
+    self.maximised = maxi
+    local pos
+    local size
+    local padding
+    if maxi then
+        self.lastPos = self.ui.Position
+        self.lastSize = self.ui.Size
+        pos = u.pos0
+        size = u.pos1
+        padding = UDim.new(0, Config.Sizing.TopbarInsetWhenMaximised)
+        self:sendToLayer()
+    else
+        pos = self.lastPos
+        size = self.lastSize
+        padding = UDim.new()
+    end
+    s.TweenService:Create(
+        self.ui,
+        Config.Window.MaximiseAnimation,
+        {Position = pos, Size = size}
+    ):Play()
+    s.TweenService:Create(
+        self.topbarInsetPad,
+        Config.Window.MaximiseAnimation,
+        {PaddingLeft = padding}
+    ):Play()
+end
+
+function w:minimise()
+    self:maximise(false)
+end
+
+function w:toggleMaximised()
+    self:maximise(not self.maximised)
+end
+
+function w:enableTwen(inst: Instance, prop: string): Tween
+    inst[prop] = u.boolToBit(self.enabled)
+    local twen = s.TweenService:Create(
+        inst,
+        Config.Window.FadeAnimation,
+        {[prop] = u.boolToBit(not self.enabled)}
+    )
+    twen:Play()
+    return twen
+end
+
 function w:enable(enabled: boolean?)
-    local e = enabled ~= false
-    if self.enabled == e then
+    local enab = enabled ~= false
+    if self.enabled == enab then
         return
     end
     if self.modaler then
-        self.modaler.Modal = e
+        self.modaler.Modal = enab
     end
-    local ui = self.ui
-    self.enabled = e
-    ui.Visible = e
+    self.enabled = enab
+    self.ui.Visible = true
     w.modals[self] = enabled or nil
-    if e then
+    self:enableTwen(self.ui, "GroupTransparency").Completed:Once(function()
+        self.ui.Visible = enab
+    end)
+    self:enableTwen(self.stro, "Transparency")
+    if enab then
         self:sendToLayer()
     end
 end
@@ -1022,8 +1223,7 @@ function w:toggle()
 end
 
 function w:destroy()
-    self:disable()
-    self.ui:Destroy()
+    self.screen:Destroy()
     u.remove(w.windows, self)
 end
 
@@ -1077,7 +1277,7 @@ do
             params.Text = txt.Text
             params.Font = txt.FontFace
             params.Size = num
-            scroll.CanvasSize = u.fromV2(g.txt:GetTextBoundsAsync(params))
+            scroll.CanvasSize = u.fromV2(s.TextService:GetTextBoundsAsync(params))
         end)
         fn = function()
             changelogs:toggle()
@@ -1092,34 +1292,34 @@ do
 end
 
 
----- suggestions ----
+---- autofill ----
 
-s.ui = o.thingy("CanvasGroup", g.ui)
-s.scroll = o.scroll(s.ui, nil, u.pos1)
-s.ui.ZIndex = 1
-s.ui.Visible = false
-o.strocorn(s.ui)
-s.btns = {}
-s.btnSize = 0
+a.ui = o.thingy("CanvasGroup", g.ui)
+a.scroll = o.scroll(a.ui, nil, u.pos1)
+a.ui.ZIndex = 1
+a.ui.Visible = false
+o.strocorn(a.ui)
+a.btns = {}
+a.btnSize = 0
 
-function s.place(box: TextBox)
-    s.ui.Position = u.posOff(
+function a.place(box: TextBox)
+    a.ui.Position = u.posOff(
         g.mouse.X,
         g.mouse.Y
     )
 end
 
-function s.clear()
-    for idx, btn in s.btns do
-        s.btns[idx] = nil
+function a.clear()
+    for idx, btn in a.btns do
+        a.btns[idx] = nil
         btn:Destroy()
     end
 end
 
-function s.addBtn(txt: string, box: TextBox, idx: number)
-    local btn = o.txt(s.scroll, u.posOff(0, s.btnSize * (idx - 1)), u.posWithOffset(1, 0, 0, s.btnSize), txt, 0, true, "Secondary")
+function a.addBtn(txt: string, box: TextBox, idx: number)
+    local btn = o.txt(a.scroll, u.posOff(0, a.btnSize * (idx - 1)), u.posWithOffset(1, 0, 0, a.btnSize), txt, 0, true, "Secondary")
     o.stro(btn)
-    u.insert(s.btns, btn)
+    u.insert(a.btns, btn)
     btn:GetPropertyChangedSignal("GuiState"):Connect(function()
         if btn.GuiState ~= Enum.GuiState.Press then return end
         box.Text = txt
@@ -1127,40 +1327,45 @@ function s.addBtn(txt: string, box: TextBox, idx: number)
     end)
 end
 
-s.notifKeys = {}
+a.notifKeys = {}
 type suggestCheck = (string) -> string?
-function s.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
+a.id = 0
+function a.suggest(box: TextBox, suggestions: {string}, check: suggestCheck)
+    local id = a.id
     box:GetPropertyChangedSignal("Text"):Connect(function()
-        s.clear()
+        a.clear()
         local filter = u.filter(suggestions, box.Text)
         local filterAmount = #filter
         if box.Text == "" or filterAmount == 0 then
-            s.ui.Visible = false
+            a.ui.Visible = false
             return
         end
-        s.ui.Size = u.posWithOffset(.15, 0, 0, s.btnSize * math.min(filterAmount, 3))
-        s.ui.Visible = true
-        s.place(box)
+        a.ui.Size = u.posWithOffset(.15, 0, 0, a.btnSize * math.min(filterAmount, 3))
+        a.ui.Visible = true
+        a.place(box)
         for idx, str in filter do
-            s.addBtn(str, box, idx)
+            a.addBtn(str, box, idx)
         end
     end)
     box.FocusLost:Connect(function()
-        g.run.RenderStepped:Wait()
-        s.ui.Visible = false
-        s.clear()
+        s.RunService.RenderStepped:Wait()
+        a.ui.Visible = false
+        a.clear()
         if box.Text == "" then return end
         local err = check(box.Text)
         if not err then return end
         box.Text = ""
-        if s.notifKeys[err] then return end
-        s.notifKeys[err] = true
-        n.send(Config.Images.HUHEgg, err, {"Ok"})
+        if a.notifKeys[id] then return end
+        a.notifKeys[id] = true
+        n.send(Config.Images.HUHEgg, err, {"Ok"}, function()
+            a.notifKeys[id] = nil
+        end)
     end)
+    a.id += 1
 end
 
 g.camUpd(Config.Sizing.SuggestionButton, function(num)
-    s.btnSize = num
+    a.btnSize = num
 end)
 
 ---- highlight ----
@@ -1181,7 +1386,7 @@ function h:updCn()
         if self.cn then
             return
         end
-        self.cn = j.add(g.run.RenderStepped:Connect(function()
+        self.cn = j.add(s.RunService.RenderStepped:Connect(function()
             local ping = g.ping
             for model, data in boxes do
                 if not model.Parent then
@@ -1247,6 +1452,7 @@ function h:addHighlight(model: Model, data: highlightData)
 end
 
 function h:removeHighlight(model: Model, data: any)
+    data.part:Destroy()
     data.box:Destroy()
     data.tag:Destroy()
     self.boxes[model] = nil
@@ -1276,7 +1482,7 @@ end
 
 ---- main window ----
 
-m.win = w.newEzier(0.5, 0.3, 0.7, "Eggsploits")
+m.win = w.newEzier(0.5, 0.3, 0.7, "Eggsploits", false, false, true)
 
 o.paddingEzy(m.win.content, .05, .05, .1, .1)
 
@@ -1312,14 +1518,14 @@ function m.goToSection(idx: number)
         local color = i == idx and Config.Section.ButtonActiveColor or Config.Section.ButtonInactiveColor
         local pos = u.pos((i - idx) * m.padding)
         if section[1].ImageColor3 ~= color then
-            g.twen:Create(
+            s.TweenService:Create(
                 section[1],
                 Config.Section.SwitchAnimation,
                 {ImageColor3 = color}
             ):Play()
         end
         if section[2].Position ~= pos then
-            g.twen:Create(
+            s.TweenService:Create(
                 section[2],
                 Config.Section.SwitchAnimation,
                 {Position = pos}
@@ -1340,16 +1546,13 @@ function m.addSection(img: number, stuff: {{GuiObject}})
     local scroll = o.scroll(m.panel, u.pos(sectionAmount * m.padding), u.pos1)
     o.padding(scroll, 0, 0, 0.05, scroll.ScrollBarThickness)
     u.insert(m.lists, o.list(scroll, nil, nil, nil, nil, 0, m.listPadding))
-    local udim = UDim.new(0, o.stroThickness)
     for _, thingos in stuff do
         local frame = o.make("Frame", {
             Parent = scroll,
             BackgroundTransparency = 1,
             Size = u.posWithOffset(1, 0, 0, m.frameSize)
         })
-        local pad = o.padding(frame)
-        o.setPad(pad, udim)
-        u.insert(m.pads, pad)
+        o.stroPad(frame)
         o.list(frame, true, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Center, Enum.UIFlexAlignment.SpaceEvenly, 0.1)
         for _, thing in thingos do
             thing.Parent = frame
@@ -1369,7 +1572,7 @@ end
 
 function m.box(txt: string, suggestions: {string}, check: suggestCheck)
     local box = o.txtBox(nil, nil, u.pos1, txt, 0, "Secondary")
-    s.suggest(box, suggestions, check)
+    a.suggest(box, suggestions, check)
     return box
 end
 
@@ -1478,8 +1681,7 @@ g.camUpd(Config.Sizing.StrokeThickness, function(num)
         stro.Thickness = num
     end
     local udim = UDim.new(0, num)
-    o.setPad(g.pad, udim)
-    for _, pad in m.pads do
+    for _, pad in o.stroPads do
         o.setPad(pad, udim)
     end
 end)
@@ -1500,11 +1702,11 @@ do
         if plr == g.plr then return end
         u.insert(plrNames, plr.Name)
     end
-    for _, plr in g.plrs:GetPlayers() do
+    for _, plr in s.Players:GetPlayers() do
         plrAdded(plr)
     end
-    j.add(g.plrs.PlayerAdded:Connect(plrAdded))
-    j.add(g.plrs.PlayerRemoving:Connect(function(plr)
+    j.add(s.Players.PlayerAdded:Connect(plrAdded))
+    j.add(s.Players.PlayerRemoving:Connect(function(plr)
         u.remove(plrNames, plr.Name)
         plrNamesToPlr[plr.Name] = nil
     end))
@@ -1535,7 +1737,7 @@ do
     local closestChar
     local closestPlrPos
     local closestPlrDir
-    j.add(g.run.PreSimulation:Connect(function()
+    j.add(s.RunService.PreSimulation:Connect(function()
         local closestMag
         local gpos = g.char:GetPivot().Position
         for _, plr in plrNamesToPlr do
@@ -1617,6 +1819,9 @@ do
     do -- You
         local stuff = {}
         do -- fly
+            local cn
+            local velocity
+            local gyro
             u.insert(
                 stuff,
                 m.env.new(false, 100)
@@ -1624,14 +1829,14 @@ do
                     "Fly",
                     "Unfly",
                     function(vars: {any})
-                        local velocity = o.make(
+                        velocity = o.make(
                             "LinearVelocity",
                             {
                                 ForceLimitsEnabled = false,
                                 Parent = workspace
                             }
                         )
-                        local gyro = o.make(
+                        gyro = o.make(
                             "AlignOrientation",
                             {
                                 Mode = Enum.OrientationAlignmentMode.OneAttachment,
@@ -1639,34 +1844,26 @@ do
                                 Parent = workspace
                             }
                         )
-
-                        local cn
-                        cn = j.add(g.run.RenderStepped:Connect(function()
-                            if not vars[1] then
-                                velocity:Destroy()
-                                gyro:Destroy()
-                                j.cleanUpSingle(cn)
-                                return
-                            end
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
                             local cameraCf = workspace.CurrentCamera.CFrame
                             local look = (cameraCf.LookVector * Vector3.new(1, 0, 1)).Unit
                             local move = g.hum.MoveDirection.Unit
-
                             velocity.VectorVelocity = (
-                                cameraCf.LookVector * u.rmNan(look:Dot(move)) +
-                                cameraCf.RightVector * u.rmNan(cameraCf.RightVector:Dot(move))
+                                cameraCf.LookVector * u.removeNan(look:Dot(move)) +
+                                cameraCf.RightVector * u.removeNan(cameraCf.RightVector:Dot(move))
                             ) * vars[2]
                             gyro.CFrame = cameraCf
-
                             velocity.Attachment0 = g.att
                             gyro.Attachment0 = g.att
-
                             for _, track in g.anim:GetPlayingAnimationTracks() do
                                 track:Stop()
                             end
-
-                            print(unpack(vars))
                         end))
+                    end,
+                    function()
+                        velocity:Destroy()
+                        gyro:Destroy()
+                        j.cleanUpSingle(cn)
                     end
                 )
                 :box(
@@ -1689,7 +1886,7 @@ do
                     "Unset walk",
                     function(vars)
                         last = g.hum.WalkSpeed
-                        cn = j.add(g.run.RenderStepped:Connect(function(delta)
+                        cn = j.add(s.RunService.RenderStepped:Connect(function(delta)
                             g.hum.WalkSpeed = vars[2]
                         end))
                     end,
@@ -1718,7 +1915,7 @@ do
                     "Unset jump",
                     function(vars)
                         last = g.hum.JumpHeight
-                        cn = j.add(g.run.RenderStepped:Connect(function(delta)
+                        cn = j.add(s.RunService.RenderStepped:Connect(function(delta)
                             g.hum.JumpHeight = vars[2]
                         end))
                     end,
@@ -1745,7 +1942,7 @@ do
                     "Infinite jump",
                     "Finite jump",
                     function()
-                        cn = j.add(g.uis.JumpRequest:Connect(function()
+                        cn = j.add(s.UserInputService.JumpRequest:Connect(function()
                             g.hum:ChangeState(Enum.HumanoidStateType.Jumping)
                         end))
                     end,
@@ -1765,7 +1962,7 @@ do
                 "Unnoclip",
                 function(vars)
                     local cn
-                    cn = j.add(g.run.PreSimulation:Connect(function()
+                    cn = j.add(s.RunService.PreSimulation:Connect(function()
                         local noclipping = vars[1]
                         for _, part in g.char:GetDescendants() do
                             if not part:IsA("BasePart") then
@@ -1840,7 +2037,7 @@ do
                     "Anchor",
                     "Unanchor",
                     function(vars)
-                        cn = j.add(g.run.RenderStepped:Connect(function()
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
                             local anchored = vars[1]
                             g.root.Anchored = anchored
                             if not anchored then
@@ -1909,16 +2106,16 @@ do
                     "Unfling",
                     function(vars)
                         while vars[1] do
-                            g.run.Heartbeat:Wait()
+                            s.RunService.Heartbeat:Wait()
                             local root = g.root
                             local vel = root.AssemblyLinearVelocity
                             root.AssemblyLinearVelocity = (
                                 vel +
                                 if closestPlrDir
                                 then closestPlrDir.Unit
-                                else g.rng:NextUnitVector()
+                                else Config.General.Random:NextUnitVector()
                             ) * vars[2]
-                            g.run.RenderStepped:Wait()
+                            s.RunService.RenderStepped:Wait()
                             root.AssemblyLinearVelocity = vel
                         end
                     end
@@ -1974,7 +2171,7 @@ do
                             return err
                         end
                         last = g.char:GetPivot()
-                        cn = j.add(g.run.RenderStepped:Connect(function()
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
                             local plr = vars[2]
                             local char = plr.Character
                             if not char then
@@ -2066,8 +2263,8 @@ do
             for _, plr in plrNamesToPlr do
                 addPlr(plr)
             end
-            g.plrs.PlayerAdded:Connect(addPlr)
-            g.plrs.PlayerRemoving:Connect(function(plr)
+            s.Players.PlayerAdded:Connect(addPlr)
+            s.Players.PlayerRemoving:Connect(function(plr)
                 if plr == g.plr then return end
                 high:removeHighlightNice(chars[plr])
                 j.cleanUpSingle(cns[plr])
@@ -2095,7 +2292,7 @@ do
             local function addHum(hum)
                 if not hum:IsA("Humanoid") and not hum:IsA("AnimationController") then return end
                 local char = hum.Parent
-                if char == workspace or g.plrs:GetPlayerFromCharacter(char) then return end
+                if char == workspace or s.Players:GetPlayerFromCharacter(char) then return end
                 chars[char] = true
                 if vars[1] then
                     add(char)
@@ -2212,7 +2409,7 @@ do
                         base.Parent = workspace
                         local cf, size = g.char:GetBoundingBox()
                         local y = cf.Y - (size.Y + base.Size.Y) / 2
-                        cn = j.add(g.run.PreSimulation:Connect(function()
+                        cn = j.add(s.RunService.PreSimulation:Connect(function()
                             local pos = g.root.Position
                             base.Position = Vector3.new(
                                 pos.X,
@@ -2296,9 +2493,9 @@ do
                 "Add shadows",
                 function(vars)
                     local cn
-                    cn = j.add(g.run.RenderStepped:Connect(function()
+                    cn = j.add(s.RunService.RenderStepped:Connect(function()
                         local set = not vars[1]
-                        g.light.GlobalShadows = set
+                        s.Lighting.GlobalShadows = set
                         if set then
                             j.cleanUpSingle(cn)
                         end
@@ -2318,8 +2515,8 @@ do
                     "Remove effects",
                     "Add effects",
                     function()
-                        cn = j.add(g.run.RenderStepped:Connect(function()
-                            for _, thing in g.light:GetChildren() do
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
+                            for _, thing in s.Lighting:GetChildren() do
                                 effects[thing] = true
                                 thing.Parent = nil
                             end
@@ -2329,7 +2526,7 @@ do
                         j.cleanUpSingle(cn)
                         for thing in effects do
                             effects[thing] = nil
-                            thing.Parent = g.light
+                            thing.Parent = s.Lighting
                         end
                     end
                 )
@@ -2347,14 +2544,14 @@ do
                     "Set clock",
                     "Unset clock",
                     function(vars)
-                        timy = g.light.ClockTime
-                        cn = j.add(g.run.RenderStepped:Connect(function()
-                            g.light.ClockTime = vars[2]
+                        timy = s.Lighting.ClockTime
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
+                            s.Lighting.ClockTime = vars[2]
                         end))
                     end,
                     function()
                         j.cleanUpSingle(cn)
-                        g.light.ClockTime = timy
+                        s.Lighting.ClockTime = timy
                     end
                 )
                 :box(
@@ -2376,14 +2573,14 @@ do
                     "Set brightness",
                     "Unset brightness",
                     function(vars)
-                        bright = g.light.Brightness
-                        cn = j.add(g.run.RenderStepped:Connect(function()
-                            g.light.Brightness = vars[2]
+                        bright = s.Lighting.Brightness
+                        cn = j.add(s.RunService.RenderStepped:Connect(function()
+                            s.Lighting.Brightness = vars[2]
                         end))
                     end,
                     function()
                         j.cleanUpSingle(cn)
-                        g.light.Brightness = bright
+                        s.Lighting.Brightness = bright
                     end
                 )
                 :box(
@@ -2411,7 +2608,8 @@ do
         })
 
         do -- aim trainer
-            local win = w.newEzier(.5, .5, 0.5, "Aim trainer")
+            local win = w.newEzier(.6, .7, 0.5, "Aim trainer", nil, nil, true)
+            win:maximise()
             local txt = o.txt(win.content, nil, u.pos1)
             local btn = o.txt(win.content, nil, nil, "X", 0, true, "Secondary")
             local vars
@@ -2421,17 +2619,17 @@ do
                 win:toggle()
                 if not win.enabled then return end
                 btn.Visible = false
-                local size = vars[2] / 100
+                local size = vars[1] / 100
                 local maxPos = 1 - size
                 btn.Size = u.pos(size, size)
-                local time = vars[3]
-                local amount = vars[4]
+                local time = vars[2]
+                local amount = vars[3]
                 local amountPassed = 0
                 local amountGotten = 0
                 local startup
                 local startupClock = 3
                 local thread = coroutine.running()
-                startup = j.add(g.run.RenderStepped:Connect(function(delta)
+                startup = j.add(s.RunService.RenderStepped:Connect(function(delta)
                     startupClock -= delta
                     local ceil = math.ceil(startupClock)
                     txt.Text = `{ceil}`
@@ -2450,8 +2648,8 @@ do
                 btn.Visible = true
                 for _ = 1, amount do
                     btn.Position = u.pos(
-                        g.rng:NextNumber(0, maxPos),
-                        g.rng:NextNumber(0, maxPos)
+                        Config.General.Random:NextNumber(0, maxPos),
+                        Config.General.Random:NextNumber(0, maxPos)
                     )
                     local delay
                     local cn = btn.Activated:Once(function()
@@ -2460,7 +2658,7 @@ do
                         delay:Disconnect()
                     end)
                     local start = tick()
-                    delay = j.add(g.run.RenderStepped:Connect(function()
+                    delay = j.add(s.RunService.RenderStepped:Connect(function()
                         if tick() - start < time and win.enabled then return end
                         cn:Disconnect()
                         delay:Disconnect()
@@ -2475,10 +2673,8 @@ do
             end
 
             local env = m.env.new(false, 25, 2, 10)
-                :toggle(
+                :btn(
                     "Aim trainer",
-                    "Aim trainer",
-                    start,
                     start
                 )
                 :box(
@@ -2531,31 +2727,169 @@ b.win:addTxtBtn("?", function()
     b.cred:toggle()
 end)
 b.btn = o.img(b.win.content, nil, u.pos1, Config.Images.ExpressionlessEgg, 0, true, "Primary")
-o.corn(b.btn)
+do
+    local corn = o.corn(b.btn)
+    local udim = UDim.new()
+    local function upd()
+        corn.TopLeftRadius = udim
+        corn.TopRightRadius = udim
+    end
+    upd()
+    corn:GetPropertyChangedSignal("CornerRadius"):Connect(upd)
+end
 o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.General.Open.Name}`)
 b.btn.Activated:Connect(function()
     m.win:toggle()
 end)
-j.add(g.uis.InputEnded:Connect(function(input, gameProcessedEvent)
+
+do
+    local img = o.make("ImageLabel") :: ImageLabel
+    for _, id in Config.Images do
+        img.Image = u.asset(id)
+        s.ContentProvider:PreloadAsync({img})
+    end
+end
+
+do
+    local canvas = o.make("CanvasGroup", {
+        Parent = g.ui,
+        Position = u.pos0,
+        Size = u.pos1,
+        BackgroundColor3 = Color3.new(),
+        BackgroundTransparency = 0.5,
+        GroupTransparency = 1,
+    })
+    local image = o.img(
+        canvas,
+        u.pos(
+            .369,
+            .268
+        ),
+        u.pos(
+            .262,
+            .463
+        ),
+        Config.Images.ExpressionlessEgg
+    )
+    local bar = o.make("UIGradient", {
+        Parent = image,
+        Rotation = -90
+    })
+    local sequence = ColorSequence.new
+    local keypoint = ColorSequenceKeypoint.new
+    local imageColourTop = Config.Loading.ImageColourTop
+    local imageColourBottom = Config.Loading.ImageColourBottom
+    local function setLoadedPercent(pos: number)
+        bar.Color = sequence({
+            keypoint(0, imageColourBottom),
+            keypoint(math.max(pos, 0), imageColourBottom),
+            keypoint(math.min(pos + 0.01, 1), imageColourTop),
+            keypoint(1, imageColourTop)
+        })
+    end
+    setLoadedPercent(0)
+    local txt = o.make("TextLabel", {
+        Parent = canvas,
+        Position = u.pos(
+            .312,
+            .675
+        ),
+        Size = u.pos(
+            .375,
+            .114
+        ),
+        TextColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 1,
+        Text = "Loading Eggsploits..."
+    }, "Text")
+    o.make("UIStroke", {
+        Parent = txt,
+        Thickness = 0.1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+        StrokeSizingMode = Enum.StrokeSizingMode.ScaledSize
+    })
+    local shimmer = o.make("UIGradient", {
+        Parent = txt,
+        Rotation = -180
+    })
+    local shimmerSize = Config.Loading.ShimmerSize / 2
+    local txtColour = Config.Loading.TextColour
+    local shimmerColour = Config.Loading.TextShimmerColour
+    local function setShimmerPos(pos: number)
+        shimmer.Color = sequence({
+            keypoint(0, txtColour),
+            keypoint(math.clamp(pos - shimmerSize, 0.001, 0.997), txtColour),
+            keypoint(math.clamp(pos, 0.002, 0.998), shimmerColour),
+            keypoint(math.clamp(pos + shimmerSize, 0.003, 0.999), txtColour),
+            keypoint(1, txtColour)
+        })
+    end
+    setShimmerPos(0)
+    local percentPos = 0
+    local currentPercentPos = 0
+    local percentSpeed = Config.Loading.PercentFeedBackSpeed
+    local percentExponent = Config.Loading.PercentExponent
+    local shimmerPos = 0
+    local shimmerSpeed = Config.Loading.ShimmerSpeed
+    local shimmerTime = 0
+    local shimmerDebounce = false
+    local shimmerDebounceTime = Config.Loading.ShimmerDebounceTime
+    local shimmerExponent = Config.Loading.ShimmerExponent
+    local onePlusShimmerSize = 1 + shimmerSize
+    local cn = j.add(s.RunService.RenderStepped:Connect(function(delta)
+        currentPercentPos = math.lerp(currentPercentPos, percentPos, percentSpeed)
+        setLoadedPercent(currentPercentPos ^ percentExponent)
+        if shimmerDebounce then
+            return
+        end
+        shimmerPos = math.lerp(0, onePlusShimmerSize, shimmerTime * shimmerSpeed)
+        shimmerTime += delta
+        if shimmerPos > onePlusShimmerSize then
+            shimmer.Color = sequence(txtColour)
+            shimmerDebounce = true
+            task.wait(shimmerDebounceTime)
+            shimmerDebounce = false
+            shimmerTime = 0
+        else
+            setShimmerPos(shimmerPos ^ shimmerExponent)
+        end
+    end))
+    local startTwen = s.TweenService:Create(
+        canvas,
+        Config.Loading.StartAnimation,
+        {GroupTransparency = 0}
+    )
+    startTwen:Play()
+    startTwen.Completed:Wait()
+    local stuff = g.ui:GetDescendants()
+    local amount = 1/#stuff
+    for _, thing in stuff do
+        s.ContentProvider:PreloadAsync({thing})
+        percentPos += amount
+    end
+    local endTwen = s.TweenService:Create(
+        canvas,
+        Config.Loading.EndAnimation,
+        {GroupTransparency = 1}
+    )
+    endTwen:Play()
+    endTwen.Completed:Wait()
+    canvas:Destroy()
+    j.cleanUpSingle(cn)
+    task.wait(Config.Loading.AfterWait)
+end
+
+b.win:enable()
+
+j.add(s.UserInputService.InputEnded:Connect(function(input, gameProcessedEvent)
     if not gameProcessedEvent and input.KeyCode == Config.General.Open then
         m.win:toggle()
     end
 end))
 
-do
-    local img = o.make("ImageLabel") :: ImageLabel
-    local content = g.services.ContentProvider
-    for _, id in Config.Images do
-        img.Image = u.asset(id)
-        content:PreloadAsync({img})
-    end
-end
-
-b.win:enable()
-
 n.send(Config.Images.ExpressionlessEgg, "Eggsploits initialised", {"Ok"})
 
-task.wait(1)
+task.wait(Config.General.UpdateNotificationWait)
 
 if v.currentVersionReadSuccess and v.lastVersionReadSuccess and v.currentVersion ~= v.lastVersion then
     n.send(Config.Images.ExpressionlessEgg, `Updated to {v.currentVersion}`, {"Changelogs"}, function(idx)

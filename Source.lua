@@ -162,7 +162,7 @@ if Config.General.InitTable[Config.General.InitKey] then
     end
 end
 
----- services, utils, janitor, object, global, notification, window, version, autofill, highlight, main, button ----
+---- services, utils, janitor, object, global, notification, window, version, suggestions, highlight, main, button ----
 local s = {}
 local u = {}
 local j = {}
@@ -180,6 +180,8 @@ local b = {}
 
 setmetatable(s, {
     __index = function(self, name)
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
         local service = game:GetService(name)
         local ref = cloneref and cloneref(service) or service
         self[name] = ref
@@ -935,24 +937,23 @@ function w.new(
         Position = u.centre(.5,.5,size),
         Size = size,
         Visible = false,
-    }, "Primary")
+        BackgroundTransparency = 1
+    })
     o.stroPad(self.ui)
-    self.insideStro = o.make("Frame", {
+    self.inside = o.make("Frame", {
         Parent = self.ui,
         Position = u.pos0,
         Size = u.pos1,
-        BackgroundTransparency = 1
     }, "Primary")
     self.screen = g.sinker(self.ui)
-    self.stro = o.stro(self.insideStro)
-    o.corn(self.insideStro)
-    o.corn(self.ui)
+    self.stro = o.stro(self.inside)
+    o.corn(self.inside)
     self.content = o.make("Frame", {
-        Parent = self.ui,
+        Parent = self.inside,
         BackgroundTransparency = 1,
     })
     self.topbar = o.make("Frame", {
-        Parent = self.ui
+        Parent = self.inside
     }, "Secondary")
     self.topbarInsetPad = o.padding(self.topbar)
     o.paddingEzy(self.topbar, .01, .01)
@@ -1737,21 +1738,23 @@ do
     local closestChar
     local closestPlrPos
     local closestPlrDir
-    j.add(s.RunService.PreSimulation:Connect(function()
+    j.add(s.RunService.PostSimulation:Connect(function()
         local closestMag
         local gpos = g.char:GetPivot().Position
         for _, plr in plrNamesToPlr do
+            if plr == g.plr then return end
             local char = plr.Character
             if not char then continue end
             local pos = char:GetPivot().Position
             local dir = pos - gpos
             local mag = dir.Magnitude
-            if closestMag and closestMag < mag then continue end
-            closestPlr = plr
-            closestChar = char
-            closestPlrPos = pos
-            closestPlrDir = dir
-            closestMag = mag
+            if not closestMag or mag < closestMag then
+                closestPlr = plr
+                closestChar = char
+                closestPlrPos = pos
+                closestPlrDir = dir
+                closestMag = mag
+            end
         end
     end))
 
@@ -2098,6 +2101,7 @@ do
         local stuff = {}
 
         do -- fling
+            local cn
             u.insert(
                 stuff,
                 m.env.new(false, 100)
@@ -2105,8 +2109,7 @@ do
                     "Fling",
                     "Unfling",
                     function(vars)
-                        while vars[1] do
-                            s.RunService.Heartbeat:Wait()
+                        cn = j.add(s.RunService.Heartbeat:Connect(function()
                             local root = g.root
                             local vel = root.AssemblyLinearVelocity
                             root.AssemblyLinearVelocity = (
@@ -2115,9 +2118,13 @@ do
                                 then closestPlrDir.Unit
                                 else Config.General.Random:NextUnitVector()
                             ) * vars[2]
+                            print(closestPlrDir)
                             s.RunService.RenderStepped:Wait()
                             root.AssemblyLinearVelocity = vel
-                        end
+                        end))
+                    end,
+                    function()
+                        j.cleanUpSingle(cn)
                     end
                 )
                 :box(

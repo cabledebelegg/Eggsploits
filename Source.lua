@@ -11,7 +11,7 @@ local Config = {
         LastVersionPath = "LastEggsploitsVersion.log",
         Random = Random.new(),
         NameLength = 10,
-        UpdateNotificationWait = 0.5,
+        UpdateNotificationWait = 1,
     },
     Loading = {
         ImageColourTop = Color3.fromRGB(75, 75, 75),

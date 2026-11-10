@@ -2707,6 +2707,26 @@ do
             )
         end
 
+        do
+            local cred = w.newEzier(.25, .2, .3, "Credits")
+            o.txt(cred.content, nil, u.pos1, "Fire idea by Ghastie")
+            local notif = n.normal()
+            u.insert(
+                stuff,
+                m.env.new(false)
+                :btn(
+                    "Very berry useful button",
+                    function()
+                        notif("Uhmmmmmmm 🔥", {"?", "Ok...?"}, function(idx: number?)
+                            if idx ~= 1 then return end
+                            cred:enable()
+                        end)
+                    end
+                )
+                .stuff
+            )
+        end
+
         m.addSection(Config.Images.MiscIcon, stuff)
     end
 end
@@ -2719,7 +2739,7 @@ b.win = w.new(.15, .2, .1, .15, .2, .25, "Open", true, true)
 b.win.ui.Position = u.pos(.825, .05)
 
 b.cred = w.newEzier(.25, .2, .3, "Credits")
-o.txt(b.cred.content, nil, u.pos1, "Eggsploits made by Cabldebelegg at the request of Killercrusher9023")
+o.txt(b.cred.content, nil, u.pos1, "Eggsploits made by Cabldebelegg at the request of Killercrusher")
 
 do
     local send = n.sad()
@@ -2869,6 +2889,9 @@ do
     startTwen:Play()
     startTwen.Completed:Wait()
     local stuff = g.ui:GetDescendants()
+    for _, id in Config.Images do
+        table.insert(stuff, o.make("ImageLabel", {Image = u.asset(id)}))
+    end
     local amount = 1/#stuff
     for _, thing in stuff do
         s.ContentProvider:PreloadAsync({thing})

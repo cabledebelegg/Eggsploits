@@ -1965,7 +1965,7 @@ do
                 "Unnoclip",
                 function(vars)
                     local cn
-                    cn = j.add(s.RunService.PreSimulation:Connect(function()
+                    cn = j.add(s.RunService.Stepped:Connect(function()
                         local noclipping = vars[1]
                         for _, part in g.char:GetDescendants() do
                             if not part:IsA("BasePart") then
@@ -2118,7 +2118,6 @@ do
                                 then closestPlrDir.Unit
                                 else Config.General.Random:NextUnitVector()
                             ) * vars[2]
-                            print(closestPlrDir)
                             s.RunService.RenderStepped:Wait()
                             root.AssemblyLinearVelocity = vel
                         end))
@@ -2136,32 +2135,43 @@ do
             )
         end
 
-        u.insert( -- tp
-            stuff,
-            m.env.new(false, nil)
-            :btn(
-                "Tp",
-                function(vars)
-                    local plr = vars[1]
-                    local err = plrCheckAgain(plr)
-                    if err then
-                        return err
+        do -- tp
+            local notif = n.normal()
+            u.insert(
+                stuff,
+                m.env.new(false, nil)
+                :btn(
+                    "Tp",
+                    function(vars)
+                        local plr = vars[1]
+                        local err = plrCheckAgain(plr)
+                        if err then
+                            return err
+                        end
+                        local char = plr.Character
+                        if not char then
+                            return `{plr.Name} has no character`
+                        end
+                        g.tp(char)
+                        return
                     end
-                    local char = plr.Character
-                    if not char then
-                        return `{plr.Name} has no character`
+                )
+                :box(
+                    "Player",
+                    plrNames,
+                    plrCheck
+                )
+                :btn("Closest", function()
+                    if not closestChar then
+                        return "No players in game"
                     end
-                    g.tp(char)
+                    g.tp(closestChar)
+                    notif(`Tp'd to {closestPlr.DisplayName} (@{closestPlr.Name})`, {"Ok"})
                     return
-                end
-            )
-            :box(
-                "Player",
-                plrNames,
-                plrCheck
-            )
-            .stuff
-        )
+                end)
+                .stuff
+            ) 
+        end
 
         do -- continuous tp
             local cn
@@ -2367,7 +2377,7 @@ do
                 1,
                 2048
             ),
-            3,
+            0.5,
             true,
             true
         )
@@ -2710,7 +2720,7 @@ do
         do
             local cred = w.newEzier(.25, .2, .3, "Credits")
             o.txt(cred.content, nil, u.pos1, "Fire idea by Ghastie")
-            local notif = n.normal()
+            local notif = n.HUH()
             u.insert(
                 stuff,
                 m.env.new(false)
@@ -2744,8 +2754,8 @@ o.txt(b.cred.content, nil, u.pos1, "Eggsploits made by Cabldebelegg at the reque
 do
     local send = n.sad()
     b.win:addTxtBtn("X", function()
-        send("Remove Eggsploits?", {"Yes", "No"}, function(num)
-            if num ~= 1 then return end
+        send("Remove Eggsploits?", {"Yes", "No"}, function(idx)
+            if idx ~= 1 then return end
             g.remove()
         end)
     end)
@@ -2768,14 +2778,6 @@ o.txt(b.btn, u.pos(0.039,0.618), u.pos(0.922,0.312), `Click {Config.General.Open
 b.btn.Activated:Connect(function()
     m.win:toggle()
 end)
-
-do
-    local img = o.make("ImageLabel") :: ImageLabel
-    for _, id in Config.Images do
-        img.Image = u.asset(id)
-        s.ContentProvider:PreloadAsync({img})
-    end
-end
 
 do
     local canvas = o.make("CanvasGroup", {
